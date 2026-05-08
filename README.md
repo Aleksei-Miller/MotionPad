@@ -125,6 +125,12 @@ This software is an independent, open-source project and is **not** affiliated w
 
 All other trademarks, logos, and brands are the property of their respective owners. The use of these names, logos, and brands does not imply endorsement.
 
+## License
+
+MotionPad is open-source software licensed under the **GNU General Public License v3.0 (GPLv3)**. 
+
+You are free to use, modify, and distribute this software under the terms of this license. For more information, please see the `LICENSE` file in the repository.
+
 ## Built With
 
 * [PS Move API](https://github.com/thp/psmoveapi) — Licensed under the [Simplified BSD License](https://github.com/thp/psmoveapi/blob/master/COPYING).
