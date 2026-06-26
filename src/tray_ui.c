@@ -200,9 +200,11 @@ static void loadProfileMenuLabel(const wchar_t *profile_path, wchar_t *out_label
 
 static int getProfileSortRank(const wchar_t *relative_path)
 {
-    if (_wcsicmp(relative_path, L"profiles\\default.ini") == 0) return 0;
-    if (_wcsicmp(relative_path, L"profiles\\default - xinput only.ini") == 0) return 1;
-    return 2;
+    if (_wcsicmp(relative_path, L"profiles\\hybrid mode.ini") == 0) return 0;
+    if (_wcsicmp(relative_path, L"profiles\\controller mode.ini") == 0) return 1;
+    if (_wcsicmp(relative_path, L"profiles\\arrow mode.ini") == 0) return 2;
+    if (_wcsicmp(relative_path, L"profiles\\wasd mode.ini") == 0) return 3;
+    return 4;
 }
 
 static int compareTrayProfiles(const void *left, const void *right)
@@ -312,17 +314,12 @@ static void appendProfilesMenu(HMENU menu_handle, const AppContext *app)
                 g_tray_profiles[profile_index].label
             );
 
-            if (profile_index == 0 &&
-                g_tray_profile_count > 1 &&
-                _wcsicmp(g_tray_profiles[0].relative_path, L"profiles\\default.ini") == 0 &&
-                (g_tray_profile_count < 2 || _wcsicmp(g_tray_profiles[1].relative_path, L"profiles\\default - xinput only.ini") != 0)) {
-                AppendMenuW(profiles_menu, MF_SEPARATOR, 0, NULL);
-            }
-            if (profile_index == 1 &&
-                g_tray_profile_count > 2 &&
-                _wcsicmp(g_tray_profiles[0].relative_path, L"profiles\\default.ini") == 0 &&
-                _wcsicmp(g_tray_profiles[1].relative_path, L"profiles\\default - xinput only.ini") == 0) {
-                AppendMenuW(profiles_menu, MF_SEPARATOR, 0, NULL);
+            if (profile_index + 1 < g_tray_profile_count) {
+                int current_rank = getProfileSortRank(g_tray_profiles[profile_index].relative_path);
+                int next_rank = getProfileSortRank(g_tray_profiles[profile_index + 1].relative_path);
+                if (current_rank != next_rank && (current_rank == 1 || current_rank == 3)) {
+                    AppendMenuW(profiles_menu, MF_SEPARATOR, 0, NULL);
+                }
             }
         }
     }
