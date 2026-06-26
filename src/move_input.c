@@ -82,7 +82,7 @@ void moveProfileResetMouseState(MoveProfile *profile)
     profile->mouseResidualY = 0.0f;
 }
 
-static void applyButtonBindingArray(ButtonBinding *bindings, int binding_count, unsigned int btns, int ps_trigger, XUSB_REPORT *report, bool gyro_stop_requested[SensorAxisIndex_Count], bool accel_reset_requested[SensorAxisIndex_Count], bool *alt_mode_requested)
+static void applyButtonBindingArray(ButtonBinding *bindings, int binding_count, unsigned int btns, int ps_trigger, XUSB_REPORT *report, bool gyro_stop_requested[SensorAxisIndex_Count], bool accel_reset_requested[SensorAxisIndex_Count], bool *alt_mode_requested, int wheelRepeatMs)
 {
     int i, j, axis;
     for (i = 0; i < binding_count; ++i) {
@@ -100,7 +100,7 @@ static void applyButtonBindingArray(ButtonBinding *bindings, int binding_count, 
                 case ActionKind_ResetAccelY: if (pressed) accel_reset_requested[SensorAxisIndex_Y] = true; break;
                 case ActionKind_ResetAccelZ: if (pressed) accel_reset_requested[SensorAxisIndex_Z] = true; break;
                 case ActionKind_AltMode: if (pressed && alt_mode_requested) *alt_mode_requested = true; break;
-                default: updateDigitalButtonAction(action, pressed, report, ps_trigger); break;
+                default: updateDigitalButtonAction(action, pressed, report, ps_trigger, wheelRepeatMs); break;
             }
         }
     }
@@ -226,7 +226,8 @@ void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *rep
         report,
         gyro_stop_requested,
         accel_reset_requested,
-        &alt_mode_requested
+        &alt_mode_requested,
+        profile->wheelRepeatMs
     );
     captureAccelCenterIfRequested(profile, accel_reset_requested, ax, ay, az);
 
@@ -247,7 +248,8 @@ void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *rep
             report,
             gyro_stop_requested,
             accel_reset_requested,
-            NULL
+            NULL,
+            profile->wheelRepeatMs
         );
     }
     active_sensor_bindings = alt_mode_requested ? &profile->altSensorBindings : &profile->sensorBindings;

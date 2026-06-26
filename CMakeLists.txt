@@ -230,11 +230,17 @@ add_custom_command(
     COMMAND "${CMAKE_COMMAND}" -E make_directory
         "$<TARGET_FILE_DIR:motionpad>/profiles"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/default.ini"
-        "$<TARGET_FILE_DIR:motionpad>/profiles/default.ini"
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/hybrid mode.ini"
+        "$<TARGET_FILE_DIR:motionpad>/profiles/hybrid mode.ini"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/default - xinput only.ini"
-        "$<TARGET_FILE_DIR:motionpad>/profiles/default - xinput only.ini"
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/controller mode.ini"
+        "$<TARGET_FILE_DIR:motionpad>/profiles/controller mode.ini"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/arrow mode.ini"
+        "$<TARGET_FILE_DIR:motionpad>/profiles/arrow mode.ini"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/wasd mode.ini"
+        "$<TARGET_FILE_DIR:motionpad>/profiles/wasd mode.ini"
     VERBATIM
 )
 

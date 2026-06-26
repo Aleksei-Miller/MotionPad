@@ -70,16 +70,16 @@ AxisSettings profileReadAxisSettings(const wchar_t *config_path, const wchar_t *
     return axis;
 }
 
-int profileReadGlobalRepeatMs(const wchar_t *config_path)
+int profileReadKeyboardKey(const wchar_t *config_path)
 {
-    int repeat_ms = GetPrivateProfileIntW(L"RepeatMs", L"Key", 120, config_path);
+    int repeat_ms = GetPrivateProfileIntW(L"Keyboard", L"Key", 120, config_path);
     if (repeat_ms < 1) repeat_ms = 1;
     return repeat_ms;
 }
 
-int profileReadWheelRepeatMs(const wchar_t *config_path)
+int profileReadMouseWheelMs(const wchar_t *config_path)
 {
-    int repeat_ms = GetPrivateProfileIntW(L"RepeatMs", L"Wheel", 0, config_path);
+    int repeat_ms = GetPrivateProfileIntW(L"Mouse", L"Wheel", 0, config_path);
     if (repeat_ms < 0) repeat_ms = 0;
     return repeat_ms;
 }
@@ -507,8 +507,8 @@ static void profileLoadMoveProfile(MoveProfile *profile, int move_index, const w
             profile->accelCenterCaptured[i] = true;
         }
     }
-    profile->repeatMs = profileReadGlobalRepeatMs(config_path);
-    profile->wheelRepeatMs = profileReadWheelRepeatMs(config_path);
+    profile->repeatMs = profileReadKeyboardKey(config_path);
+    profile->wheelRepeatMs = profileReadMouseWheelMs(config_path);
     profile->triggerConfig = profileReadMoveTriggerConfig(config_path, move_index);
     profile->altTriggerConfig = profileReadAltMoveTriggerConfig(config_path, move_index);
     profileReadGyroConfig(config_path, move_index, profile->gyroConfig);
@@ -705,8 +705,8 @@ static void profileLoadNavigatorProfile(NavigatorProfile *profile, int navigator
 
     navigatorProfileResetRuntimeState(profile);
     ZeroMemory(profile, sizeof(*profile));
-    profile->repeatMs = profileReadGlobalRepeatMs(config_path);
-    profile->wheelRepeatMs = profileReadWheelRepeatMs(config_path);
+    profile->repeatMs = profileReadKeyboardKey(config_path);
+    profile->wheelRepeatMs = profileReadMouseWheelMs(config_path);
     profile->triggerConfig = profileReadNavigationTriggerConfig(config_path, navigator_index);
     profile->altTriggerConfig = profileReadAltNavigationTriggerConfig(config_path, navigator_index);
     profileLoadNavigationStickConfig(profile, navigator_index, config_path);

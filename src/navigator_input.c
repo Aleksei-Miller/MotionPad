@@ -117,7 +117,7 @@ static bool isNavigatorButtonPressed(NavDevice *nav, NavigatorButtonInput input)
     }
 }
 
-static void applyNavigatorButtonBindingArray(NavDevice *nav, NavigatorButtonBinding *bindings, int binding_count, int trigger_value, XUSB_REPORT *report, bool *alt_mode_requested)
+static void applyNavigatorButtonBindingArray(NavDevice *nav, NavigatorButtonBinding *bindings, int binding_count, int trigger_value, XUSB_REPORT *report, bool *alt_mode_requested, int wheelRepeatMs)
 {
     int i;
     int j;
@@ -139,7 +139,7 @@ static void applyNavigatorButtonBindingArray(NavDevice *nav, NavigatorButtonBind
             if (binding->input == NavigatorButtonInput_L2 && action->kind == ActionKind_XboxTrigger) {
                 setXboxAxisValue(report, action->data.xboxAxis, trigger_value);
             } else {
-                updateDigitalButtonAction(action, pressed, report, trigger_value);
+                updateDigitalButtonAction(action, pressed, report, trigger_value, wheelRepeatMs);
             }
         }
     }
@@ -177,7 +177,7 @@ void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB
     raw_trigger_value = navDeviceGetAxis(nav, NavDevAxis_TRIGGER);
     trigger_value = applyTriggerSettings(raw_trigger_value, &profile->triggerConfig);
 
-    applyNavigatorButtonBindingArray(nav, profile->buttonBindings, profile->buttonBindingCount, trigger_value, report, &alt_mode_requested);
+    applyNavigatorButtonBindingArray(nav, profile->buttonBindings, profile->buttonBindingCount, trigger_value, report, &alt_mode_requested, profile->wheelRepeatMs);
 
     repeat_ms = profile->repeatMs;
     sx = navDeviceGetAxis(nav, NavDevAxis_STICK_X);
@@ -199,7 +199,7 @@ void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB
 
     if (alt_mode_requested) {
         trigger_value = applyTriggerSettings(raw_trigger_value, &profile->altTriggerConfig);
-        applyNavigatorButtonBindingArray(nav, profile->altButtonBindings, profile->altButtonBindingCount, trigger_value, report, NULL);
+        applyNavigatorButtonBindingArray(nav, profile->altButtonBindings, profile->altButtonBindingCount, trigger_value, report, NULL, profile->wheelRepeatMs);
     }
 
     active_sensor_bindings = alt_mode_requested ? profile->altSensorBindings : profile->sensorBindings;

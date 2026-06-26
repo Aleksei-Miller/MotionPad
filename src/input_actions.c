@@ -287,7 +287,7 @@ int normalizeSensorToThumb(int raw_value)
     return clampToShort(raw_value * 16);
 }
 
-void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value)
+void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value, int wheelRepeatMs)
 {
     if (!action) return;
     switch (action->kind) {
@@ -298,20 +298,27 @@ void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *
             if (pressed != action->isDown) { sendMouseButtonByKind(action->data.mouseButton, pressed); action->isDown = pressed; }
             break;
         case ActionKind_MouseWheel:
+        case ActionKind_MouseWheel_Pos:
+        case ActionKind_MouseWheel_Neg: {
+            int wheel_delta;
+            int effective_repeat = wheelRepeatMs > 0 ? wheelRepeatMs : 50;
+            if (action->kind == ActionKind_MouseWheel_Neg) wheel_delta = -WHEEL_DELTA;
+            else wheel_delta = action->data.mouseWheel != 0 ? action->data.mouseWheel * WHEEL_DELTA : WHEEL_DELTA;
             if (pressed && !action->isDown) {
-                sendMouseWheelEvent(action->data.mouseWheel * WHEEL_DELTA);
+                sendMouseWheelEvent(wheel_delta);
                 action->isDown = true;
                 action->lastRepeatTick = GetTickCount();
             } else if (pressed && action->isDown) {
                 DWORD now = GetTickCount();
-                if (now - action->lastRepeatTick >= 50) {
-                    sendMouseWheelEvent(action->data.mouseWheel * WHEEL_DELTA);
+                if (now - action->lastRepeatTick >= (DWORD)effective_repeat) {
+                    sendMouseWheelEvent(wheel_delta);
                     action->lastRepeatTick = now;
                 }
             } else {
                 action->isDown = false;
             }
             break;
+        }
         case ActionKind_XboxButton:
             if (pressed) report->wButtons |= action->data.xboxButton;
             break;

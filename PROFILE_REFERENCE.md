@@ -4,7 +4,7 @@ This document describes the MotionPad profile format, supported sections, field 
 
 ## Overview
 
-MotionPad reads `settings.ini` from the executable directory. By default, it loads `profiles\default.ini`.
+MotionPad reads `settings.ini` from the executable directory. By default, it loads `profiles\hybrid mode.ini`.
 
 `settings.ini` contains global application settings:
 
@@ -15,7 +15,7 @@ Section`[General]`
 | `Path` | Active profile path | Relative path |
 | `Enable` | Enable or disable emulation | `0` or `1` |
 
-A profile file such as `profiles\default.ini` contains controller mappings and runtime settings.
+A profile file such as `profiles\hybrid mode.ini` contains controller mappings and runtime settings.
 
 ## Binding Prefixes
 
@@ -119,7 +119,7 @@ Examples:
 
 - Multiple actions can be assigned on one line, separated by spaces.
 - `alt_mode` activates alternate bindings while the assigned control is held.
-- `profiles\default.ini` is the canonical example profile.
+- `profiles\hybrid mode.ini` is the canonical example profile.
 
 
 ## Supported Profile Sections
@@ -136,7 +136,8 @@ Examples:
 | `[Navigation1]`, `[Navigation2]` | Main button and stick bindings for PS Navigation |
 | `[NavigationTrigger1]`, `[NavigationTrigger2]` | Main trigger settings for PS Navigation |
 | `[NavigationStick1]`, `[NavigationStick2]` | Main stick settings for PS Navigation |
-| `[RepeatMs]` | Repeat delay for repeating actions |
+| `[Keyboard]` | Repeat delay for keyboard actions |
+| `[Mouse]` | Repeat delay and speed for mouse actions |
 | `[Profile]` | Profile metadata |
 
 ### Alternate Mode Sections
@@ -307,13 +308,19 @@ Supported fields:
 | `LargeBoostLow`, `LargeBoostMid`, `LargeBoostHigh`, `SmallBoostLow`, `SmallBoostMid`, `SmallBoostHigh` | Strength multipliers for each range | `float`, `0.0 - max` |
 | `LargeMinOutput`, `SmallMinOutput` | Minimum motor output once active | `int`, `0 - 255` |
 
-### Repeat Section
-- `[RepeatMs]`
+### Keyboard Section
+- `[Keyboard]`
 
 | Name | Description | Value |
 | --- | --- | --- |
 | `Key` | Repeat delay for keyboard/mouse button actions | `int` milliseconds |
-| `Wheel` | Repeat delay for mouse wheel actions (default: 0 = use Key) | `int` milliseconds |
+
+### Mouse Section
+- `[Mouse]`
+
+| Name | Description | Value |
+| --- | --- | --- |
+| `Wheel` | Repeat delay for mouse wheel actions (default: 50ms if 0) | `int` milliseconds |
 
 ### Profile Section
 - `[Profile]`

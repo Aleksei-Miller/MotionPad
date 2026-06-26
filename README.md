@@ -98,7 +98,7 @@ Profile sections, field names, binding syntax, and action prefixes are documente
 - `lib/SDL3/` - SDL3 import library and DEF file
 - `runtime/` - runtime DLLs and default config
 - `runtime/settings.ini` - startup settings
-- `runtime/profiles/default.ini` - sample profile
+- `runtime/profiles/` - built-in profiles (hybrid mode.ini, controller mode.ini, test.ini)
 - `PROFILE_REFERENCE.md` - profile format and action reference
 - `CMakeLists.txt` - build configuration
 
