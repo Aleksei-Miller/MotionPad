@@ -69,6 +69,7 @@ typedef struct AppContext {
     RumbleConfig rumble_config;
     BOOL telemetry_enabled;
     XUSB_REPORT report;
+    int move_count_cache;
 } AppContext;
 
 void appContextInit(AppContext *app);

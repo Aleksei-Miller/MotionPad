@@ -369,7 +369,7 @@ bool deviceHasAnyInputConnected(const AppContext *app)
     int navigator_index;
     if (!app) return false;
     if (app->move_connected[0] || app->move_connected[1]) return true;
-    if (psmove_count_connected() > 0) return true;
+    if (app->move_count_cache > 0) return true;
     for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT; ++navigator_index) {
         if (app->navigators[navigator_index]) return true;
     }
