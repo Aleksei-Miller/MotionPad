@@ -52,6 +52,7 @@ static void updateServiceDevices(AppContext *app, DWORD *last_service_tick, DWOR
         deviceRemoveDisconnectedMovesBestEffort(app);
         deviceConnectAvailableMoves(app);
         deviceConnectNavigatorsIfNeeded(app, now);
+        app->move_count_cache = psmove_count_connected();
         *last_service_tick = now;
     }
 }
@@ -193,7 +194,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
         }
 
         updateServiceDevices(&app, &last_service_poll_tick, now);
-        app.move_count_cache = psmove_count_connected();
         updateTrayTooltipIfNeeded(&app, &last_tray_update_tick, now);
 
         if ((DWORD)(now - last_liveness_tick) >= DEVICE_LIVENESS_POLL_MS) {
