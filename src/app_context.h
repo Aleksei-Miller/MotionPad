@@ -32,6 +32,8 @@ typedef struct AppContext {
     wchar_t pending_profile_path[MAX_PATH];
     volatile LONG config_dirty;
     volatile LONG profile_switch_pending;
+    wchar_t auto_base_path[MAX_PATH];
+    wchar_t auto_triggered_exe[MAX_PATH];
     HANDLE config_watch_thread;
     HANDLE config_watch_stop_event;
     volatile LONG settings_dirty;

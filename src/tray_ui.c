@@ -360,6 +360,7 @@ static void traySelectProfile(AppContext *app, UINT command_id)
         return;
     }
 
+    app->auto_triggered_exe[0] = L'\0';
     wcsncpy(app->pending_profile_path, selected_profile->path, MAX_PATH - 1);
     app->pending_profile_path[MAX_PATH - 1] = L'\0';
     InterlockedExchange(&app->profile_switch_pending, 1);
@@ -477,13 +478,34 @@ void trayCheckAutoProfile(AppContext *app)
     for (i = 0; i < g_tray_profile_count; ++i) {
         if (g_tray_profiles[i].exe_path[0] == L'\0') continue;
         if (!profileExeMatches(g_tray_profiles[i].exe_path, exe_name)) continue;
-        if (profilePathsEqual(app->config_path, g_tray_profiles[i].path)) return;
+        if (profilePathsEqual(app->config_path, g_tray_profiles[i].path)) {
+            wcsncpy(app->auto_triggered_exe, exe_name, MAX_PATH - 1);
+            app->auto_triggered_exe[MAX_PATH - 1] = L'\0';
+            return;
+        }
+
+        if (app->auto_triggered_exe[0] == L'\0') {
+            wcsncpy(app->auto_base_path, app->config_path, MAX_PATH - 1);
+            app->auto_base_path[MAX_PATH - 1] = L'\0';
+        }
+        wcsncpy(app->auto_triggered_exe, exe_name, MAX_PATH - 1);
+        app->auto_triggered_exe[MAX_PATH - 1] = L'\0';
 
         wcsncpy(app->pending_profile_path, g_tray_profiles[i].path, MAX_PATH - 1);
         app->pending_profile_path[MAX_PATH - 1] = L'\0';
         InterlockedExchange(&app->profile_switch_pending, 1);
         logWriteW("tray", L"auto-profile: window=%ls (%ls)", exe_name, g_tray_profiles[i].label);
         return;
+    }
+
+    if (app->auto_triggered_exe[0] != L'\0' &&
+        _wcsicmp(exe_name, app->auto_triggered_exe) != 0 &&
+        !profilePathsEqual(app->config_path, app->auto_base_path)) {
+        wcsncpy(app->pending_profile_path, app->auto_base_path, MAX_PATH - 1);
+        app->pending_profile_path[MAX_PATH - 1] = L'\0';
+        app->auto_triggered_exe[0] = L'\0';
+        InterlockedExchange(&app->profile_switch_pending, 1);
+        logWriteW("tray", L"auto-profile: revert to base");
     }
 }
 
