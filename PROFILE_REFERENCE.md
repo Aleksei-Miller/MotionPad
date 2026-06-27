@@ -16,6 +16,7 @@ Section`[General]`
 | `EnableOutput` | Enable or disable emulation | `0` or `1` |
 | `EnableTelemetry` | Stream controller state to named pipe | `0` or `1` |
 | `UseBthPS3` | Use BthPS3 Bluetooth backend for Navigation | `0` or `1` |
+| `UseAutoProfile` | Auto-switch profile based on foreground window | `0` or `1` |
 | `PollRateMs` | Main loop sleep in ms (1-100) | int |
 
 A profile file such as `profiles\hybrid mode.ini` contains controller mappings and runtime settings.
@@ -330,6 +331,6 @@ Supported fields:
 
 | Name | Description | Value |
 | --- | --- | --- |
-| `Path` | Optional profile path metadata | Text |
-| `Name` | Profile display name | Text |
+| `Path` | Executable name for auto-profile switching (e.g. `chrome.exe`). Full paths also work — only the basename is compared. | Text |
+| `Name` | Profile display name in tray menu | Text |
 | `Comments` | Free-form profile notes | Text |

@@ -1,3 +1,9 @@
+#ifdef __TINYC__
+#ifndef PROCESS_QUERY_LIMITED_INFORMATION
+#define PROCESS_QUERY_LIMITED_INFORMATION 0x1000
+#endif
+#endif
+
 #include "tray_ui.h"
 #include "rumble_manager.h"
 #include "vigem_manager.h"
@@ -5,6 +11,11 @@
 #include "nav_device.h"
 #include "profile.h"
 #include "profile_watcher.h"
+
+#ifdef __TINYC__
+typedef BOOL (WINAPI *QFPIWFunc)(HANDLE, DWORD, LPWSTR, PDWORD);
+static QFPIWFunc qfpiw = NULL;
+#endif
 
 static AppContext *g_app = NULL;
 
@@ -14,6 +25,7 @@ typedef struct TrayProfileEntry {
     wchar_t path[MAX_PATH];
     wchar_t relative_path[MAX_PATH];
     wchar_t label[128];
+    wchar_t exe_path[MAX_PATH];
 } TrayProfileEntry;
 
 static TrayProfileEntry g_tray_profiles[MAX_TRAY_PROFILES];
@@ -270,6 +282,9 @@ static void refreshTrayProfiles(void)
         }
         entry->relative_path[MAX_PATH - 1] = L'\0';
         loadProfileMenuLabel(entry->path, entry->label, sizeof(entry->label) / sizeof(entry->label[0]));
+        entry->exe_path[0] = L'\0';
+        GetPrivateProfileStringW(L"Profile", L"Path", L"", entry->exe_path, MAX_PATH, entry->path);
+        trimWideStringInPlace(entry->exe_path);
         ++g_tray_profile_count;
     } while (FindNextFileW(find_handle, &find_data));
 
@@ -384,6 +399,92 @@ void trayApplyPendingProfileSelection(AppContext *app)
 
     logWriteW("tray", L"profile applied: %ls", app->config_path);
     trayUpdateTooltip(app);
+}
+
+static void getForegroundProcessName(wchar_t *out_name, size_t out_count)
+{
+    HWND foreground;
+    DWORD pid;
+    HANDLE process;
+    DWORD size;
+    wchar_t full_path[MAX_PATH];
+    wchar_t *slash;
+
+    if (!out_name || out_count == 0) return;
+    out_name[0] = L'\0';
+
+    foreground = GetForegroundWindow();
+    if (!foreground) return;
+
+    if (!GetWindowThreadProcessId(foreground, &pid)) return;
+    if (pid == 0) return;
+
+    process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process) return;
+
+    size = MAX_PATH;
+    full_path[0] = L'\0';
+
+#if defined(__TINYC__)
+    if (!qfpiw) {
+        HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
+        if (k32) qfpiw = (QFPIWFunc)GetProcAddress(k32, "QueryFullProcessImageNameW");
+    }
+    if (qfpiw && qfpiw(process, 0, full_path, &size) && full_path[0] != L'\0') {
+#else
+    if (QueryFullProcessImageNameW(process, 0, full_path, &size) && full_path[0] != L'\0') {
+#endif
+        slash = wcsrchr(full_path, L'\\');
+        if (slash) {
+            wcsncpy(out_name, slash + 1, out_count - 1);
+            out_name[out_count - 1] = L'\0';
+        } else {
+            wcsncpy(out_name, full_path, out_count - 1);
+            out_name[out_count - 1] = L'\0';
+        }
+    }
+    CloseHandle(process);
+}
+
+static bool profileExeMatches(const wchar_t *profile_exe_path, const wchar_t *foreground_exe)
+{
+    const wchar_t *slash;
+
+    if (!profile_exe_path || profile_exe_path[0] == L'\0' || !foreground_exe) return false;
+
+    slash = wcsrchr(profile_exe_path, L'\\');
+    if (slash) {
+        return _wcsicmp(foreground_exe, slash + 1) == 0;
+    }
+    return _wcsicmp(foreground_exe, profile_exe_path) == 0;
+}
+
+void trayCheckAutoProfile(AppContext *app)
+{
+    wchar_t exe_name[MAX_PATH];
+    UINT i;
+
+    if (!app || !app->use_auto_profile) return;
+    if (InterlockedCompareExchange(&app->profile_switch_pending, 0, 0)) return;
+
+    if (g_tray_profile_count == 0) {
+        refreshTrayProfiles();
+    }
+
+    getForegroundProcessName(exe_name, MAX_PATH);
+    if (exe_name[0] == L'\0') return;
+
+    for (i = 0; i < g_tray_profile_count; ++i) {
+        if (g_tray_profiles[i].exe_path[0] == L'\0') continue;
+        if (!profileExeMatches(g_tray_profiles[i].exe_path, exe_name)) continue;
+        if (profilePathsEqual(app->config_path, g_tray_profiles[i].path)) return;
+
+        wcsncpy(app->pending_profile_path, g_tray_profiles[i].path, MAX_PATH - 1);
+        app->pending_profile_path[MAX_PATH - 1] = L'\0';
+        InterlockedExchange(&app->profile_switch_pending, 1);
+        logWriteW("tray", L"auto-profile: window=%ls (%ls)", exe_name, g_tray_profiles[i].label);
+        return;
+    }
 }
 
 static void buildBatteryMenuText(const AppContext *app, wchar_t *out_text, size_t out_count)

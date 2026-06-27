@@ -11,6 +11,7 @@ It is designed to stay in the background, reload profiles without restarting, an
 - Mapping to Xbox 360 controller, keyboard, and mouse output from a single profile
 - Live profile reload without restarting the app
 - Alternate layers through `alt_mode`
+- Auto-profile switching based on foreground window (see `UseAutoProfile` in `runtime/settings.ini`)
 
 ## System requirements:
 
@@ -72,6 +73,24 @@ From the tray you can:
 - Pair PS Move controllers 
 - Launch PS Move calibration
 - Switch the active profile
+
+## Auto-Profile Switching
+
+MotionPad can switch profiles automatically based on the foreground window. Enable it in `runtime/settings.ini`:
+
+```ini
+UseAutoProfile=1
+```
+
+Then set `Path=` under `[Profile]` in each profile's `.ini` file to match a process name:
+
+```ini
+[Profile]
+Path=C:\Program Files\Game\game.exe
+Name=Some game
+```
+
+Only the basename is matched (case-insensitive), so `game.exe` works even with a full path.
 
 ## Controller Notes
 

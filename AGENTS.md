@@ -47,7 +47,8 @@ app/
 ```
 Main loop (every ~9ms, PollRateMs in settings.ini):
   1. trayApplyPendingProfileSelection — loads queued profile switch
-  2. updateServiceDevices (every 3s) — connects new Moves/Navigators, removes OS-disconnected
+  2. trayCheckAutoProfile — detects foreground window, auto-switches profile if [Profile] Path= matches
+  3. updateServiceDevices (every 3s) — connects new Moves/Navigators, removes OS-disconnected
   3. updateTrayTooltipIfNeeded — reads *cached* battery, no psmove_poll
   4. deviceCheckAlive (every 3s) — single psmove_poll per Move, navDevicePoll per Nav
   5. appContextZeroReport — zeros XUSB_REPORT for new frame
@@ -72,6 +73,10 @@ A single `XUSB_REPORT` is shared across all connected devices. Processing order 
 Two backends, selected by `UseBthPS3` in `settings.ini`:
 - `libnavinput` — USB-only, WinUSB driver, battery via `psnavigatorGetBattery()`
 - `SDL3` — USB/BT, requires BthPS3 + DsHidMini mode 3, battery via `HidD_GetFeature` 50-byte report (byte[31]: 0x00–0x05 = battery, 0xEE/0xEF = USB)
+
+## Auto-Profile Switching
+
+When `UseAutoProfile=1` in `settings.ini`, the app reads `[Profile] Path=` from every `.ini` in the `profiles/` directory. On each frame it gets the foreground window's executable name via `QueryFullProcessImageNameW` and matches it (case-insensitive, basename only) against each profile's `Path` value. On match, it queues a profile switch.
 
 ## Profile Sections
 

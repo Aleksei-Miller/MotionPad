@@ -10,6 +10,7 @@ void trayShutdownWindow(AppContext *app);
 void trayToggleEmulation(AppContext *app);
 void trayHandleMessageLoop(AppContext *app);
 void trayApplyPendingProfileSelection(AppContext *app);
+void trayCheckAutoProfile(AppContext *app);
 void trayUpdateTooltip(AppContext *app);
 
 #endif

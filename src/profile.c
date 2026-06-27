@@ -991,6 +991,12 @@ void profileSaveSettings(const AppContext *app)
         app->use_bthps3 ? L"1" : L"0",
         app->settings_path
     );
+    WritePrivateProfileStringW(
+        L"General",
+        L"UseAutoProfile",
+        app->use_auto_profile ? L"1" : L"0",
+        app->settings_path
+    );
     {
         wchar_t buf[16];
         _snwprintf(buf, 16, L"%d", app->poll_rate_ms);
@@ -1033,6 +1039,7 @@ void profileLoadSettings(AppContext *app)
     app->output_enabled = GetPrivateProfileIntW(L"General", L"EnableOutput", 1, app->settings_path) ? true : false;
     app->telemetry_enabled = GetPrivateProfileIntW(L"General", L"EnableTelemetry", 0, app->settings_path) ? true : false;
     app->use_bthps3 = GetPrivateProfileIntW(L"General", L"UseBthPS3", 0, app->settings_path) ? true : false;
+    app->use_auto_profile = GetPrivateProfileIntW(L"General", L"UseAutoProfile", 0, app->settings_path) ? true : false;
     app->poll_rate_ms = (int)GetPrivateProfileIntW(L"General", L"PollRateMs", 4, app->settings_path);
     if (app->poll_rate_ms < 1) app->poll_rate_ms = 1;
     if (app->poll_rate_ms > 100) app->poll_rate_ms = 100;
@@ -1051,6 +1058,7 @@ void profileReloadSettings(AppContext *app)
 
     app->output_enabled = GetPrivateProfileIntW(L"General", L"EnableOutput", 1, app->settings_path) ? true : false;
     app->telemetry_enabled = GetPrivateProfileIntW(L"General", L"EnableTelemetry", 0, app->settings_path) ? true : false;
+    app->use_auto_profile = GetPrivateProfileIntW(L"General", L"UseAutoProfile", 0, app->settings_path) ? true : false;
     app->poll_rate_ms = (int)GetPrivateProfileIntW(L"General", L"PollRateMs", 4, app->settings_path);
     if (app->poll_rate_ms < 1) app->poll_rate_ms = 1;
     if (app->poll_rate_ms > 100) app->poll_rate_ms = 100;
