@@ -349,19 +349,13 @@ void deviceCheckAlive(AppContext *app, DWORD now)
 
     if (!app) return;
 
-    for (index = 0; index < NAVIGATOR_COUNT; ++index) {
-        if (app->navigators[index]) {
-            navDevicePoll(app->navigators[index], now);
-        }
-    }
-
     for (index = 0; index < MOVE_COUNT; ++index) {
         if (app->moves[index]) {
             psmove_poll(app->moves[index]);
         }
     }
 
-
+    (void)now;
 }
 
 bool deviceHasAnyInputConnected(const AppContext *app)

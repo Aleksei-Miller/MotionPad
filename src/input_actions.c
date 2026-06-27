@@ -221,7 +221,9 @@ int applyAxisDeadzone(int raw_value, const AxisSettings *axis)
     int magnitude, adjusted;
     if (!axis) return raw_value;
     if (axis->invert) raw_value = -raw_value;
-    raw_value = (int)roundf((float)raw_value * axis->sensitivity);
+    if (axis->sensitivity != 1.0f) {
+        raw_value = (int)roundf((float)raw_value * axis->sensitivity);
+    }
     magnitude = abs(raw_value);
     if (magnitude <= axis->deadzone) return 0;
     adjusted = magnitude - axis->deadzone;

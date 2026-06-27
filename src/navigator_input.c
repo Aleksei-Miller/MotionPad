@@ -208,7 +208,7 @@ void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB
     px = applyStickAxis(sx, &active_stick_config[0]);
     py = applyStickAxis(sy, &active_stick_config[1]);
 
-#define NAP(inputName,val,cfg) applyNavigatorSensorBinding(profile, &active_sensor_bindings[inputName], val, cfg, inputName, repeat_ms, profile->wheelRepeatMs, report, now)
+#define NAP(inputName,val,cfg) if (active_sensor_bindings[inputName].actionCount > 0) applyNavigatorSensorBinding(profile, &active_sensor_bindings[inputName], val, cfg, inputName, repeat_ms, profile->wheelRepeatMs, report, now)
     NAP(NavigatorAxisInput_X, px, &active_stick_config[0]);
     NAP(NavigatorAxisInput_X_Pos, px, &active_stick_config[0]);
     NAP(NavigatorAxisInput_X_Neg, px, &active_stick_config[0]);

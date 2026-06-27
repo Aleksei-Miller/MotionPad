@@ -243,7 +243,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
         maybeSendTelemetry(&app, now);
         if (app.vigem_client && app.vigem_pad) {
             if (!vigemSubmitReport(&app, &app.report)) {
-                Sleep(100);
+                Sleep(WAIT_SLEEP_MS);
                 continue;
             }
         }

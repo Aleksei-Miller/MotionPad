@@ -209,7 +209,12 @@ void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *rep
 
     if (!profile || !move || !report) return;
 
-    while (psmove_poll(move)) { }
+    {
+        int poll_count = 0;
+        while (poll_count < MAX_PSMOVE_POLLS_PER_TICK && psmove_poll(move)) {
+            ++poll_count;
+        }
+    }
     btns = psmove_get_buttons(move);
     raw_trigger = psmove_get_trigger(move);
     psmove_get_gyroscope(move, &gx, &gy, &gz);
@@ -266,7 +271,7 @@ void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *rep
     pay = applyAxisDeadzone(ay - profile->accelCenter[SensorAxisIndex_Y], &active_accel_config[SensorAxisIndex_Y]);
     paz = applyAxisDeadzone(az - profile->accelCenter[SensorAxisIndex_Z], &active_accel_config[SensorAxisIndex_Z]);
 
-#define AP(inputName,val,cfg,stopped) applySensorBindingForProfile(profile, &(*active_sensor_bindings)[inputName], val, cfg, inputName, stopped, repeat_ms, profile->wheelRepeatMs, report, now)
+#define AP(inputName,val,cfg,stopped) if ((*active_sensor_bindings)[inputName].actionCount > 0) applySensorBindingForProfile(profile, &(*active_sensor_bindings)[inputName], val, cfg, inputName, stopped, repeat_ms, profile->wheelRepeatMs, report, now)
     AP(SensorAxisInput_GyroX, pgx, &active_gyro_config[SensorAxisIndex_X], gyro_stop_requested[SensorAxisIndex_X]);
     AP(SensorAxisInput_GyroX_Pos, pgx, &active_gyro_config[SensorAxisIndex_X], gyro_stop_requested[SensorAxisIndex_X]);
     AP(SensorAxisInput_GyroX_Neg, pgx, &active_gyro_config[SensorAxisIndex_X], gyro_stop_requested[SensorAxisIndex_X]);
