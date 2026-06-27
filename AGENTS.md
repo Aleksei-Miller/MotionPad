@@ -46,14 +46,15 @@ app/
 
 ```
 Main loop (every ~9ms, PollRateMs in settings.ini):
-  1. updateServiceDevices (every 3s) — connects new Moves/Navigators, removes OS-disconnected
-  2. updateTrayTooltipIfNeeded — reads *cached* battery, no psmove_poll
-  3. deviceCheckAlive (every 3s) — single psmove_poll per Move, navDevicePoll per Nav
-  4. appContextZeroReport — zeros XUSB_REPORT for new frame
-  5. processNavigatorInputDevice — poll Nav, apply bindings → XUSB_REPORT
-  6. processMoveInputDevice — while(psmove_poll), apply button + sensor bindings → XUSB_REPORT
-  7. maybeSendTelemetry — reads cached state, no poll drain
-  8. vigemSubmitReport — sends XUSB_REPORT to ViGEmBus (virtual Xbox 360 pad)
+  1. trayApplyPendingProfileSelection — loads queued profile switch
+  2. updateServiceDevices (every 3s) — connects new Moves/Navigators, removes OS-disconnected
+  3. updateTrayTooltipIfNeeded — reads *cached* battery, no psmove_poll
+  4. deviceCheckAlive (every 3s) — single psmove_poll per Move, navDevicePoll per Nav
+  5. appContextZeroReport — zeros XUSB_REPORT for new frame
+  6. processNavigatorInputDevice — poll Nav, apply bindings → XUSB_REPORT
+  7. processMoveInputDevice — while(psmove_poll), apply button + sensor bindings → XUSB_REPORT
+  8. maybeSendTelemetry — reads cached state, no poll drain
+  9. vigemSubmitReport — sends XUSB_REPORT to ViGEmBus (virtual Xbox 360 pad)
 ```
 
 ## Important Patterns

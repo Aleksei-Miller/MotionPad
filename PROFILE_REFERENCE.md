@@ -13,7 +13,10 @@ Section`[General]`
 | Name | Description | Value |
 | --- | --- | --- |
 | `Path` | Active profile path | Relative path |
-| `Enable` | Enable or disable emulation | `0` or `1` |
+| `EnableOutput` | Enable or disable emulation | `0` or `1` |
+| `EnableTelemetry` | Stream controller state to named pipe | `0` or `1` |
+| `UseBthPS3` | Use BthPS3 Bluetooth backend for Navigation | `0` or `1` |
+| `PollRateMs` | Main loop sleep in ms (1-100) | int |
 
 A profile file such as `profiles\hybrid mode.ini` contains controller mappings and runtime settings.
 
@@ -313,7 +316,7 @@ Supported fields:
 
 | Name | Description | Value |
 | --- | --- | --- |
-| `Key` | Repeat delay for keyboard/mouse button actions | `int` milliseconds |
+| `Key` | Repeat delay for keyboard button actions | `int` milliseconds |
 
 ### Mouse Section
 - `[Mouse]`
