@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 typedef enum NavDeviceType {
     NavDevType_None = 0,
@@ -48,7 +50,7 @@ bool navDeviceIsReachable(const char *identifier);
 NavDevice *navDeviceCreate(const char *identifier);
 void navDeviceDestroy(NavDevice *dev);
 
-bool navDevicePoll(NavDevice *dev);
+bool navDevicePoll(NavDevice *dev, DWORD now);
 bool navDeviceIsConnected(NavDevice *dev);
 bool navDeviceGetButton(NavDevice *dev, NavDeviceButton btn);
 uint32_t navDeviceGetButtons(NavDevice *dev);

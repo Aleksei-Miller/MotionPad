@@ -51,7 +51,7 @@ static bool isMoveSerialAssigned(const AppContext *app, const char *serial)
     return false;
 }
 
-static void deviceHandleNavigatorDisconnect(AppContext *app, int navigator_index)
+static void deviceHandleNavigatorDisconnect(AppContext *app, int navigator_index, DWORD now)
 {
     char device_path[NAVIGATOR_PATH_LENGTH];
 
@@ -69,7 +69,6 @@ static void deviceHandleNavigatorDisconnect(AppContext *app, int navigator_index
         int cooldown_index;
         int empty_index = -1;
         int oldest_index = 0;
-        DWORD now = GetTickCount();
         for (cooldown_index = 0; cooldown_index < NAVIGATOR_COUNT; ++cooldown_index) {
             if (app->navigator_cooldown_path[cooldown_index][0] == '\0') {
                 if (empty_index < 0) empty_index = cooldown_index;
@@ -86,7 +85,7 @@ static void deviceHandleNavigatorDisconnect(AppContext *app, int navigator_index
         }
         strncpy(app->navigator_cooldown_path[empty_index], device_path, sizeof(app->navigator_cooldown_path[empty_index]) - 1);
         app->navigator_cooldown_path[empty_index][sizeof(app->navigator_cooldown_path[empty_index]) - 1] = '\0';
-        app->navigator_cooldown_tick[empty_index] = GetTickCount();
+        app->navigator_cooldown_tick[empty_index] = now;
     }
     navigatorProfileResetRuntimeState(&app->navigator_profiles[navigator_index]);
     appContextZeroReport(app);
@@ -250,10 +249,9 @@ void deviceConnectAvailableMoves(AppContext *app)
     }
 }
 
-void deviceConnectNavigatorsIfNeeded(AppContext *app)
+void deviceConnectNavigatorsIfNeeded(AppContext *app, DWORD now)
 {
     char device_path[NAVIGATOR_PATH_LENGTH];
-    DWORD now;
     int device_count;
     int device_id;
     int navigator_index;
@@ -264,11 +262,11 @@ void deviceConnectNavigatorsIfNeeded(AppContext *app)
 
     for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT; ++navigator_index) {
         if (app->navigators[navigator_index] && !navDeviceIsConnected(app->navigators[navigator_index])) {
-            deviceHandleNavigatorDisconnect(app, navigator_index);
+            deviceHandleNavigatorDisconnect(app, navigator_index, now);
         }
     }
 
-    now = GetTickCount();
+    
 
     if (app->navigator_reconnect_tick != 0 &&
         (DWORD)(now - app->navigator_reconnect_tick) < 500) {
@@ -345,7 +343,7 @@ void deviceConnectNavigatorsIfNeeded(AppContext *app)
     }
 }
 
-void deviceCheckAlive(AppContext *app)
+void deviceCheckAlive(AppContext *app, DWORD now)
 {
     int index;
 
@@ -353,7 +351,7 @@ void deviceCheckAlive(AppContext *app)
 
     for (index = 0; index < NAVIGATOR_COUNT; ++index) {
         if (app->navigators[index]) {
-            navDevicePoll(app->navigators[index]);
+            navDevicePoll(app->navigators[index], now);
         }
     }
 

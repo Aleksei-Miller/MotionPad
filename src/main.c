@@ -46,32 +46,32 @@ static void fallbackToDefaultProfileIfMissing(AppContext *app)
     }
 }
 
-static void updateServiceDevices(AppContext *app, DWORD *last_service_tick)
+static void updateServiceDevices(AppContext *app, DWORD *last_service_tick, DWORD now)
 {
-    if ((DWORD)(GetTickCount() - *last_service_tick) >= SERVICE_POLL_MS) {
+    if ((DWORD)(now - *last_service_tick) >= SERVICE_POLL_MS) {
         deviceRemoveDisconnectedMovesBestEffort(app);
         deviceConnectAvailableMoves(app);
-        deviceConnectNavigatorsIfNeeded(app);
-        *last_service_tick = GetTickCount();
+        deviceConnectNavigatorsIfNeeded(app, now);
+        *last_service_tick = now;
     }
 }
 
-static void updateTrayTooltipIfNeeded(AppContext *app, DWORD *last_tray_tick)
+static void updateTrayTooltipIfNeeded(AppContext *app, DWORD *last_tray_tick, DWORD now)
 {
-    if (GetTickCount() - *last_tray_tick >= TRAY_UPDATE_INTERVAL_MS) {
+    if (now - *last_tray_tick >= TRAY_UPDATE_INTERVAL_MS) {
         trayUpdateTooltip(app);
-        *last_tray_tick = GetTickCount();
+        *last_tray_tick = now;
     }
 }
 
-static void maybeSendTelemetry(AppContext *app)
+static void maybeSendTelemetry(AppContext *app, DWORD now)
 {
     if (!profileIsTelemetryEnabled(app) || !telemetryIsConnected()) {
         return;
     }
 
     TelemetryData data = {0};
-    data.tick = GetTickCount();
+    data.tick = now;
 
     if (app->moves[0]) {
         data.m1.con = psmove_connection_type(app->moves[0]);
@@ -92,7 +92,7 @@ static void maybeSendTelemetry(AppContext *app)
     }
 
     if (app->navigators[0]) {
-        navDevicePoll(app->navigators[0]);
+        navDevicePoll(app->navigators[0], now);
         data.n1.con = navDeviceGetConnectionType(app->navigators[0]);
         data.n1.bat = navDeviceGetBattery(app->navigators[0]);
         data.n1.btns = navDeviceGetButtons(app->navigators[0]);
@@ -102,7 +102,7 @@ static void maybeSendTelemetry(AppContext *app)
     }
 
     if (app->navigators[1]) {
-        navDevicePoll(app->navigators[1]);
+        navDevicePoll(app->navigators[1], now);
         data.n2.con = navDeviceGetConnectionType(app->navigators[1]);
         data.n2.bat = navDeviceGetBattery(app->navigators[1]);
         data.n2.btns = navDeviceGetButtons(app->navigators[1]);
@@ -167,6 +167,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
     logWrite("main", "started. waiting for PS Move and PS Navigator controllers...");
 
     while (InterlockedCompareExchange(&app.running, 1, 1)) {
+        DWORD now = GetTickCount();
+
         trayHandleMessageLoop(&app);
         if (!InterlockedCompareExchange(&app.running, 1, 1)) break;
         trayApplyPendingProfileSelection(&app);
@@ -192,12 +194,12 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
             }
         }
 
-        updateServiceDevices(&app, &last_service_poll_tick);
-        updateTrayTooltipIfNeeded(&app, &last_tray_update_tick);
+        updateServiceDevices(&app, &last_service_poll_tick, now);
+        updateTrayTooltipIfNeeded(&app, &last_tray_update_tick, now);
 
-        if ((DWORD)(GetTickCount() - last_liveness_tick) >= DEVICE_LIVENESS_POLL_MS) {
-            deviceCheckAlive(&app);
-            last_liveness_tick = GetTickCount();
+        if ((DWORD)(now - last_liveness_tick) >= DEVICE_LIVENESS_POLL_MS) {
+            deviceCheckAlive(&app, now);
+            last_liveness_tick = now;
         }
 
         if (!app.output_enabled) {
@@ -225,19 +227,20 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
                 processNavigatorInputDevice(
                     app.navigators[navigator_index],
                     &app.navigator_profiles[navigator_index],
-                    &app.report
+                    &app.report,
+                    now
                 );
             }
         }
         if (app.move_connected[0] && app.moves[0]) {
-            processMoveInputDevice(&app.move_profiles[0], app.moves[0], &app.report);
+            processMoveInputDevice(&app.move_profiles[0], app.moves[0], &app.report, now);
             app.move_battery_raw[0] = psmove_get_battery(app.moves[0]);
         }
         if (app.move_connected[1] && app.moves[1]) {
-            processMoveInputDevice(&app.move_profiles[1], app.moves[1], &app.report);
+            processMoveInputDevice(&app.move_profiles[1], app.moves[1], &app.report, now);
             app.move_battery_raw[1] = psmove_get_battery(app.moves[1]);
         }
-        maybeSendTelemetry(&app);
+        maybeSendTelemetry(&app, now);
         if (app.vigem_client && app.vigem_pad) {
             if (!vigemSubmitReport(&app, &app.report)) {
                 Sleep(100);

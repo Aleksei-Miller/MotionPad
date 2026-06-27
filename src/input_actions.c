@@ -287,7 +287,7 @@ int normalizeSensorToThumb(int raw_value)
     return clampToShort(raw_value * 16);
 }
 
-void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value, int wheelRepeatMs)
+void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value, int wheelRepeatMs, DWORD now)
 {
     if (!action) return;
     switch (action->kind) {
@@ -307,9 +307,8 @@ void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *
             if (pressed && !action->isDown) {
                 sendMouseWheelEvent(wheel_delta);
                 action->isDown = true;
-                action->lastRepeatTick = GetTickCount();
+                action->lastRepeatTick = now;
             } else if (pressed && action->isDown) {
-                DWORD now = GetTickCount();
                 if (now - action->lastRepeatTick >= (DWORD)effective_repeat) {
                     sendMouseWheelEvent(wheel_delta);
                     action->lastRepeatTick = now;

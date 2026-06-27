@@ -238,14 +238,14 @@ void navDeviceDestroy(NavDevice *dev)
     free(dev);
 }
 
-bool navDevicePoll(NavDevice *dev)
+bool navDevicePoll(NavDevice *dev, DWORD now)
 {
     if (!dev || !dev->connected) return false;
 
     if (dev->type == NavDevType_SDL3) {
         int i;
         if (!dev->u.sdl3.joy || !SDL_JoystickConnected(dev->u.sdl3.joy)) {
-            if ((DWORD)(GetTickCount() - dev->last_alive_tick) >= NAV_DEVICE_GRACE_MS) {
+            if ((DWORD)(now - dev->last_alive_tick) >= NAV_DEVICE_GRACE_MS) {
                 dev->connected = false;
             }
             return false;
@@ -257,7 +257,7 @@ bool navDevicePoll(NavDevice *dev)
             dev->u.sdl3.axes[i] = SDL_GetJoystickAxis(dev->u.sdl3.joy, i);
         for (i = 0; i < dev->u.sdl3.num_hats; ++i)
             dev->u.sdl3.hats[i] = SDL_GetJoystickHat(dev->u.sdl3.joy, i);
-        dev->last_alive_tick = GetTickCount();
+        dev->last_alive_tick = now;
         return true;
     }
 
@@ -265,12 +265,12 @@ bool navDevicePoll(NavDevice *dev)
         PSNavResult result = psnavigatorPoll(dev->u.psnav);
         if (result != PSNAV_RESULT_OK) {
             if (result == PSNAV_RESULT_NOT_CONNECTED &&
-                (DWORD)(GetTickCount() - dev->last_alive_tick) >= NAV_DEVICE_GRACE_MS) {
+                (DWORD)(now - dev->last_alive_tick) >= NAV_DEVICE_GRACE_MS) {
                 dev->connected = false;
             }
             return false;
         }
-        dev->last_alive_tick = GetTickCount();
+        dev->last_alive_tick = now;
         return true;
     }
 

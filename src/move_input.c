@@ -82,7 +82,7 @@ void moveProfileResetMouseState(MoveProfile *profile)
     profile->mouseResidualY = 0.0f;
 }
 
-static void applyButtonBindingArray(ButtonBinding *bindings, int binding_count, unsigned int btns, int ps_trigger, XUSB_REPORT *report, bool gyro_stop_requested[SensorAxisIndex_Count], bool accel_reset_requested[SensorAxisIndex_Count], bool *alt_mode_requested, int wheelRepeatMs)
+static void applyButtonBindingArray(ButtonBinding *bindings, int binding_count, unsigned int btns, int ps_trigger, XUSB_REPORT *report, bool gyro_stop_requested[SensorAxisIndex_Count], bool accel_reset_requested[SensorAxisIndex_Count], bool *alt_mode_requested, int wheelRepeatMs, DWORD now)
 {
     int i, j, axis;
     for (i = 0; i < binding_count; ++i) {
@@ -100,7 +100,7 @@ static void applyButtonBindingArray(ButtonBinding *bindings, int binding_count, 
                 case ActionKind_ResetAccelY: if (pressed) accel_reset_requested[SensorAxisIndex_Y] = true; break;
                 case ActionKind_ResetAccelZ: if (pressed) accel_reset_requested[SensorAxisIndex_Z] = true; break;
                 case ActionKind_AltMode: if (pressed && alt_mode_requested) *alt_mode_requested = true; break;
-                default: updateDigitalButtonAction(action, pressed, report, ps_trigger, wheelRepeatMs); break;
+                default: updateDigitalButtonAction(action, pressed, report, ps_trigger, wheelRepeatMs, now); break;
             }
         }
     }
@@ -151,9 +151,8 @@ static void applySensorMouseDelta(MoveProfile *profile, float delta_x, float del
     sendMouseMoveDelta(dx, dy);
 }
 
-static void applySensorBindingForProfile(MoveProfile *profile, SensorBinding *binding, int processed_value, const AxisSettings *axis, SensorAxisInput input, bool sensor_stopped, int repeat_ms, int wheelRepeatMs, XUSB_REPORT *report)
+static void applySensorBindingForProfile(MoveProfile *profile, SensorBinding *binding, int processed_value, const AxisSettings *axis, SensorAxisInput input, bool sensor_stopped, int repeat_ms, int wheelRepeatMs, XUSB_REPORT *report, DWORD now_tick)
 {
-    DWORD now_tick = GetTickCount();
     int j;
     float mouse_dx = 0.0f, mouse_dy = 0.0f;
     int magnitude;
@@ -192,7 +191,7 @@ static void applySensorBindingForProfile(MoveProfile *profile, SensorBinding *bi
     }
 }
 
-void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *report)
+void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *report, DWORD now)
 {
     unsigned int btns;
     int raw_trigger;
@@ -227,7 +226,8 @@ void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *rep
         gyro_stop_requested,
         accel_reset_requested,
         &alt_mode_requested,
-        profile->wheelRepeatMs
+        profile->wheelRepeatMs,
+        now
     );
     captureAccelCenterIfRequested(profile, accel_reset_requested, ax, ay, az);
 
@@ -249,7 +249,8 @@ void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *rep
             gyro_stop_requested,
             accel_reset_requested,
             NULL,
-            profile->wheelRepeatMs
+            profile->wheelRepeatMs,
+            now
         );
     }
     active_sensor_bindings = alt_mode_requested ? &profile->altSensorBindings : &profile->sensorBindings;
@@ -265,7 +266,7 @@ void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *rep
     pay = applyAxisDeadzone(ay - profile->accelCenter[SensorAxisIndex_Y], &active_accel_config[SensorAxisIndex_Y]);
     paz = applyAxisDeadzone(az - profile->accelCenter[SensorAxisIndex_Z], &active_accel_config[SensorAxisIndex_Z]);
 
-#define AP(inputName,val,cfg,stopped) applySensorBindingForProfile(profile, &(*active_sensor_bindings)[inputName], val, cfg, inputName, stopped, repeat_ms, profile->wheelRepeatMs, report)
+#define AP(inputName,val,cfg,stopped) applySensorBindingForProfile(profile, &(*active_sensor_bindings)[inputName], val, cfg, inputName, stopped, repeat_ms, profile->wheelRepeatMs, report, now)
     AP(SensorAxisInput_GyroX, pgx, &active_gyro_config[SensorAxisIndex_X], gyro_stop_requested[SensorAxisIndex_X]);
     AP(SensorAxisInput_GyroX_Pos, pgx, &active_gyro_config[SensorAxisIndex_X], gyro_stop_requested[SensorAxisIndex_X]);
     AP(SensorAxisInput_GyroX_Neg, pgx, &active_gyro_config[SensorAxisIndex_X], gyro_stop_requested[SensorAxisIndex_X]);

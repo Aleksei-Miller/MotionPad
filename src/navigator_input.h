@@ -59,6 +59,6 @@ typedef struct NavigatorProfile {
 } NavigatorProfile;
 
 void navigatorProfileResetRuntimeState(NavigatorProfile *profile);
-void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB_REPORT *report);
+void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB_REPORT *report, DWORD now);
 
 #endif
