@@ -92,7 +92,6 @@ static void maybeSendTelemetry(AppContext *app, DWORD now)
     }
 
     if (app->navigators[0]) {
-        navDevicePoll(app->navigators[0], now);
         data.n1.con = navDeviceGetConnectionType(app->navigators[0]);
         data.n1.bat = navDeviceGetBattery(app->navigators[0]);
         data.n1.btns = navDeviceGetButtons(app->navigators[0]);
@@ -102,7 +101,6 @@ static void maybeSendTelemetry(AppContext *app, DWORD now)
     }
 
     if (app->navigators[1]) {
-        navDevicePoll(app->navigators[1], now);
         data.n2.con = navDeviceGetConnectionType(app->navigators[1]);
         data.n2.bat = navDeviceGetBattery(app->navigators[1]);
         data.n2.btns = navDeviceGetButtons(app->navigators[1]);
@@ -223,6 +221,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
         }
 
         appContextZeroReport(&app);
+        navDeviceFrameStart();
         for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT; ++navigator_index) {
             if (app.navigators[navigator_index]) {
                 processNavigatorInputDevice(

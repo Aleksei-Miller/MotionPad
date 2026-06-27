@@ -50,6 +50,7 @@ bool navDeviceIsReachable(const char *identifier);
 NavDevice *navDeviceCreate(const char *identifier);
 void navDeviceDestroy(NavDevice *dev);
 
+void navDeviceFrameStart(void);
 bool navDevicePoll(NavDevice *dev, DWORD now);
 bool navDeviceIsConnected(NavDevice *dev);
 bool navDeviceGetButton(NavDevice *dev, NavDeviceButton btn);

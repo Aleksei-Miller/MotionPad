@@ -40,6 +40,13 @@ void navDeviceGlobalShutdown(void)
     }
 }
 
+void navDeviceFrameStart(void)
+{
+    if (g_backend == NavBackend_SDL3) {
+        SDL_PumpEvents();
+    }
+}
+
 int navDeviceGetAvailableCount(void)
 {
     if (g_backend == NavBackend_SDL3) {
@@ -250,7 +257,6 @@ bool navDevicePoll(NavDevice *dev, DWORD now)
             }
             return false;
         }
-        SDL_PumpEvents();
         for (i = 0; i < dev->u.sdl3.num_buttons; ++i)
             dev->u.sdl3.buttons[i] = SDL_GetJoystickButton(dev->u.sdl3.joy, i);
         for (i = 0; i < dev->u.sdl3.num_axes; ++i)
