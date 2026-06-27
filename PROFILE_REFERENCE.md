@@ -331,6 +331,6 @@ Supported fields:
 
 | Name | Description | Value |
 | --- | --- | --- |
-| `Path` | Executable name for auto-profile switching (e.g. `chrome.exe`). Full paths also work — only the basename is compared. | Text |
+| `Path` | Executable name for auto-profile switching (e.g. `game.exe`). Full paths also work — only the basename is compared. | Text |
 | `Name` | Profile display name in tray menu | Text |
 | `Comments` | Free-form profile notes | Text |
