@@ -460,12 +460,15 @@ static bool profileExeMatches(const wchar_t *profile_exe_path, const wchar_t *fo
     return _wcsicmp(foreground_exe, profile_exe_path) == 0;
 }
 
-void trayCheckAutoProfile(AppContext *app)
+void trayCheckAutoProfile(AppContext *app, DWORD now)
 {
+    static DWORD last_check = 0;
     wchar_t exe_name[MAX_PATH];
     UINT i;
 
     if (!app || !app->use_auto_profile) return;
+    if ((DWORD)(now - last_check) < 200) return;
+    last_check = now;
     if (InterlockedCompareExchange(&app->profile_switch_pending, 0, 0)) return;
 
     if (g_tray_profile_count == 0) {

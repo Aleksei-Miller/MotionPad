@@ -171,7 +171,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
         trayHandleMessageLoop(&app);
         if (!InterlockedCompareExchange(&app.running, 1, 1)) break;
         trayApplyPendingProfileSelection(&app);
-        trayCheckAutoProfile(&app);
+        trayCheckAutoProfile(&app, now);
 
         if (InterlockedExchange(&app.config_dirty, 0)) {
             fallbackToDefaultProfileIfMissing(&app);
