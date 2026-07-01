@@ -52,6 +52,7 @@ typedef struct NavigatorProfile {
     AxisSettings stickConfig[2];
     AxisSettings altStickConfig[2];
     int repeatMs;
+    int mouseRepeatMs;
     int wheelRepeatMs;
     bool altModeActive;
     float mouseResidualX;

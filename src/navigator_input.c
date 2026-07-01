@@ -59,7 +59,7 @@ static void applyNavigatorMouseDelta(NavigatorProfile *profile, float delta_x, f
     sendMouseMoveDelta(dx, dy);
 }
 
-static void applyNavigatorSensorBinding(NavigatorProfile *profile, NavigatorSensorBinding *binding, int processed_value, const AxisSettings *axis, NavigatorAxisInput input, int repeat_ms, int wheelRepeatMs, XUSB_REPORT *report, DWORD now_tick)
+static void applyNavigatorSensorBinding(NavigatorProfile *profile, NavigatorSensorBinding *binding, int processed_value, const AxisSettings *axis, NavigatorAxisInput input, int repeat_ms, int mouseRepeatMs, int wheelRepeatMs, XUSB_REPORT *report, DWORD now_tick)
 {
     int j;
     float mouse_dx = 0.0f, mouse_dy = 0.0f;
@@ -88,7 +88,7 @@ static void applyNavigatorSensorBinding(NavigatorProfile *profile, NavigatorSens
             case ActionKind_Keyboard:
             case ActionKind_MouseButton:
             case ActionKind_XboxButton:
-                applySensorButtonLikeAction(action, active, now_tick, repeat_ms, wheelRepeatMs, report);
+                applySensorButtonLikeAction(action, active, now_tick, repeat_ms, mouseRepeatMs, wheelRepeatMs, report);
                 break;
             default:
                 break;
@@ -153,6 +153,7 @@ void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB
     int i;
     int j;
     int repeat_ms;
+    int mouse_repeat_ms;
     int raw_trigger_value;
     int trigger_value;
     bool alt_mode_requested = false;
@@ -179,6 +180,7 @@ void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB
     applyNavigatorButtonBindingArray(nav, profile->buttonBindings, profile->buttonBindingCount, trigger_value, report, &alt_mode_requested, profile->wheelRepeatMs, now);
 
     repeat_ms = profile->repeatMs;
+    mouse_repeat_ms = profile->mouseRepeatMs;
     sx = navDeviceGetAxis(nav, NavDevAxis_STICK_X);
     sy = navDeviceGetAxis(nav, NavDevAxis_STICK_Y);
 
@@ -208,7 +210,7 @@ void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB
     px = applyStickAxis(sx, &active_stick_config[0]);
     py = applyStickAxis(sy, &active_stick_config[1]);
 
-#define NAP(inputName,val,cfg) if (active_sensor_bindings[inputName].actionCount > 0) applyNavigatorSensorBinding(profile, &active_sensor_bindings[inputName], val, cfg, inputName, repeat_ms, profile->wheelRepeatMs, report, now)
+#define NAP(inputName,val,cfg) if (active_sensor_bindings[inputName].actionCount > 0) applyNavigatorSensorBinding(profile, &active_sensor_bindings[inputName], val, cfg, inputName, repeat_ms, mouse_repeat_ms, profile->wheelRepeatMs, report, now)
     NAP(NavigatorAxisInput_X, px, &active_stick_config[0]);
     NAP(NavigatorAxisInput_X_Pos, px, &active_stick_config[0]);
     NAP(NavigatorAxisInput_X_Neg, px, &active_stick_config[0]);

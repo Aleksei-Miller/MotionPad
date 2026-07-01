@@ -333,7 +333,7 @@ void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *
     }
 }
 
-void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_tick, int repeat_ms, int wheelRepeatMs, XUSB_REPORT *report)
+void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_tick, int repeat_ms, int mouseRepeatMs, int wheelRepeatMs, XUSB_REPORT *report)
 {
     int effectiveRepeat = repeat_ms;
     if (action->kind == ActionKind_MouseWheel && wheelRepeatMs > 0) {
@@ -365,14 +365,17 @@ void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_ti
         action->lastRepeatTick = now_tick;
         return;
     }
-    if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)repeat_ms) {
-        if (action->kind == ActionKind_Keyboard) {
+    if (action->kind == ActionKind_Keyboard) {
+        if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)repeat_ms) {
             sendKeyboardEvent(action->data.vkCode, false);
             sendKeyboardEvent(action->data.vkCode, true);
-        } else if (action->kind == ActionKind_MouseButton) {
+            action->lastRepeatTick = now_tick;
+        }
+    } else if (action->kind == ActionKind_MouseButton) {
+        if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)mouseRepeatMs) {
             sendMouseButtonByKind(action->data.mouseButton, false);
             sendMouseButtonByKind(action->data.mouseButton, true);
+            action->lastRepeatTick = now_tick;
         }
-        action->lastRepeatTick = now_tick;
     }
 }

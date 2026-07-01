@@ -77,6 +77,13 @@ int profileReadKeyboardKey(const wchar_t *config_path)
     return repeat_ms;
 }
 
+int profileReadMouseKey(const wchar_t *config_path)
+{
+    int repeat_ms = GetPrivateProfileIntW(L"Mouse", L"Key", 120, config_path);
+    if (repeat_ms < 1) repeat_ms = 1;
+    return repeat_ms;
+}
+
 int profileReadMouseWheelMs(const wchar_t *config_path)
 {
     int repeat_ms = GetPrivateProfileIntW(L"Mouse", L"Wheel", 0, config_path);
@@ -508,6 +515,7 @@ static void profileLoadMoveProfile(MoveProfile *profile, int move_index, const w
         }
     }
     profile->repeatMs = profileReadKeyboardKey(config_path);
+    profile->mouseRepeatMs = profileReadMouseKey(config_path);
     profile->wheelRepeatMs = profileReadMouseWheelMs(config_path);
     profile->triggerConfig = profileReadMoveTriggerConfig(config_path, move_index);
     profile->altTriggerConfig = profileReadAltMoveTriggerConfig(config_path, move_index);
@@ -706,6 +714,7 @@ static void profileLoadNavigatorProfile(NavigatorProfile *profile, int navigator
     navigatorProfileResetRuntimeState(profile);
     ZeroMemory(profile, sizeof(*profile));
     profile->repeatMs = profileReadKeyboardKey(config_path);
+    profile->mouseRepeatMs = profileReadMouseKey(config_path);
     profile->wheelRepeatMs = profileReadMouseWheelMs(config_path);
     profile->triggerConfig = profileReadNavigationTriggerConfig(config_path, navigator_index);
     profile->altTriggerConfig = profileReadAltNavigationTriggerConfig(config_path, navigator_index);

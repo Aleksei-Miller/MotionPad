@@ -71,6 +71,7 @@ typedef struct MoveProfile {
     AxisSettings altGyroConfig[SensorAxisIndex_Count];
     AxisSettings altAccelConfig[SensorAxisIndex_Count];
     int repeatMs;
+    int mouseRepeatMs;
     int wheelRepeatMs;
     int accelCenter[SensorAxisIndex_Count];
     bool accelCenterCaptured[SensorAxisIndex_Count];
