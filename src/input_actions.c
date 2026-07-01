@@ -289,15 +289,45 @@ int normalizeSensorToThumb(int raw_value)
     return clampToShort(raw_value * 16);
 }
 
-void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value, int wheelRepeatMs, DWORD now)
+void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value, int repeatMs, int mouseRepeatMs, int wheelRepeatMs, DWORD now)
 {
     if (!action) return;
     switch (action->kind) {
         case ActionKind_Keyboard:
-            if (pressed != action->isDown) { sendKeyboardEvent(action->data.vkCode, pressed); action->isDown = pressed; }
+            if (pressed) {
+                if (!action->isDown) {
+                    sendKeyboardEvent(action->data.vkCode, true);
+                    action->isDown = true;
+                    action->lastRepeatTick = now;
+                } else if (repeatMs > 0 && now - action->lastRepeatTick >= (DWORD)repeatMs) {
+                    sendKeyboardEvent(action->data.vkCode, false);
+                    sendKeyboardEvent(action->data.vkCode, true);
+                    action->lastRepeatTick = now;
+                }
+            } else {
+                if (action->isDown) {
+                    sendKeyboardEvent(action->data.vkCode, false);
+                    action->isDown = false;
+                }
+            }
             break;
         case ActionKind_MouseButton:
-            if (pressed != action->isDown) { sendMouseButtonByKind(action->data.mouseButton, pressed); action->isDown = pressed; }
+            if (pressed) {
+                if (!action->isDown) {
+                    sendMouseButtonByKind(action->data.mouseButton, true);
+                    action->isDown = true;
+                    action->lastRepeatTick = now;
+                } else if (mouseRepeatMs > 0 && now - action->lastRepeatTick >= (DWORD)mouseRepeatMs) {
+                    sendMouseButtonByKind(action->data.mouseButton, false);
+                    sendMouseButtonByKind(action->data.mouseButton, true);
+                    action->lastRepeatTick = now;
+                }
+            } else {
+                if (action->isDown) {
+                    sendMouseButtonByKind(action->data.mouseButton, false);
+                    action->isDown = false;
+                }
+            }
             break;
         case ActionKind_MouseWheel:
         case ActionKind_MouseWheel_Pos:
