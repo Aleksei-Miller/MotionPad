@@ -1,37 +1,15 @@
 #include "device_manager.h"
 #include "rumble_manager.h"
+#include "vigem_manager.h"
 #include "logger.h"
-#include "psnavigator.h"
+#include "nav_device.h"
 #include "move_input.h"
 
-static PSNavigator *deviceConnectNavigatorByPathWithResult(const char *device_path, PSNavResult *out_result)
+static NavDevice *deviceConnectNavigatorByIdentifier(const char *identifier)
 {
-    PSNavigator *nav;
+    if (!identifier || !identifier[0]) return NULL;
 
-    if (out_result) {
-        *out_result = PSNAV_RESULT_ERROR;
-    }
-
-    if (!device_path || !device_path[0]) {
-        if (out_result) {
-            *out_result = PSNAV_RESULT_INVALID_ARGUMENT;
-        }
-        return NULL;
-    }
-
-    nav = psnavigatorConnectByPath(device_path);
-    if (!nav) {
-        if (out_result) {
-            *out_result = PSNAV_RESULT_OPEN_FAILED;
-        }
-        return NULL;
-    }
-
-    if (out_result) {
-        *out_result = PSNAV_RESULT_OK;
-    }
-
-    return nav;
+    return navDeviceCreate(identifier);
 }
 
 static bool isNavigatorPathAssigned(const AppContext *app, const char *device_path)
@@ -52,21 +30,16 @@ static bool isNavigatorPathAssigned(const AppContext *app, const char *device_pa
     return false;
 }
 
-static bool isMoveSourceIdAssigned(const AppContext *app, int source_id)
+static bool isSerialEmptyOrPlaceholder(const char *s)
 {
-    int move_index;
-    if (!app) return false;
-    for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
-        if (app->move_connected[move_index] && app->move_source_id[move_index] == source_id) return true;
-    }
-    return false;
+    return !s || !s[0] || strcmp(s, "00:00:00:00:00:00") == 0;
 }
 
 static bool isMoveSerialAssigned(const AppContext *app, const char *serial)
 {
     int move_index;
 
-    if (!app || !serial || !serial[0]) return false;
+    if (!app || isSerialEmptyOrPlaceholder(serial)) return false;
 
     for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
         if (app->move_connected[move_index] &&
@@ -78,7 +51,7 @@ static bool isMoveSerialAssigned(const AppContext *app, const char *serial)
     return false;
 }
 
-static void deviceHandleNavigatorDisconnect(AppContext *app, int navigator_index)
+static void deviceHandleNavigatorDisconnect(AppContext *app, int navigator_index, DWORD now)
 {
     char device_path[NAVIGATOR_PATH_LENGTH];
 
@@ -89,10 +62,34 @@ static void deviceHandleNavigatorDisconnect(AppContext *app, int navigator_index
     strncpy(device_path, app->navigator_paths[navigator_index], sizeof(device_path) - 1);
     device_path[sizeof(device_path) - 1] = '\0';
 
-    psnavigatorDisconnect(app->navigators[navigator_index]);
+    navDeviceDestroy(app->navigators[navigator_index]);
     app->navigators[navigator_index] = NULL;
     app->navigator_paths[navigator_index][0] = '\0';
+    {
+        int cooldown_index;
+        int empty_index = -1;
+        int oldest_index = 0;
+        for (cooldown_index = 0; cooldown_index < NAVIGATOR_COUNT; ++cooldown_index) {
+            if (app->navigator_cooldown_path[cooldown_index][0] == '\0') {
+                if (empty_index < 0) empty_index = cooldown_index;
+            } else if (strcmp(app->navigator_cooldown_path[cooldown_index], device_path) == 0) {
+                empty_index = cooldown_index;
+                break;
+            } else if ((DWORD)(now - app->navigator_cooldown_tick[cooldown_index]) >
+                       (DWORD)(now - app->navigator_cooldown_tick[oldest_index])) {
+                oldest_index = cooldown_index;
+            }
+        }
+        if (empty_index < 0) {
+            empty_index = oldest_index;
+        }
+        strncpy(app->navigator_cooldown_path[empty_index], device_path, sizeof(app->navigator_cooldown_path[empty_index]) - 1);
+        app->navigator_cooldown_path[empty_index][sizeof(app->navigator_cooldown_path[empty_index]) - 1] = '\0';
+        app->navigator_cooldown_tick[empty_index] = now;
+    }
     navigatorProfileResetRuntimeState(&app->navigator_profiles[navigator_index]);
+    appContextZeroReport(app);
+    vigemSubmitReport(app, &app->report);
     logWrite("navigator", "Navigator%d disconnected: %s", navigator_index + 1, device_path[0] ? device_path : "<unknown>");
 }
 
@@ -117,6 +114,7 @@ void deviceSetMoveDisconnected(AppContext *app, int move_index)
     moveProfileResetMouseState(&app->move_profiles[move_index]);
 
     if (was_connected) {
+        vigemSubmitReport(app, &app->report);
         logWrite("psmove", "Move%d disconnected", move_index + 1);
     }
 }
@@ -150,19 +148,31 @@ void deviceConnectAvailableMoves(AppContext *app)
 {
     int count;
     int index;
+    int source_ids[MOVE_COUNT * 2];
+
+    int newly_connected = 0;
 
     if (!app) return;
 
-    count = psmove_count_connected();
+    count = psmove_count_connected(source_ids, MOVE_COUNT * 2);
     if (count <= 0) return;
 
-    for (index = 0; index < count; ++index) {
+    for (index = 0; index < count && newly_connected < 1; ++index) {
         PSMove *move = NULL;
         char *serial = NULL;
         int target_slot = -1;
+        int sid = source_ids[index];
+        int s;
 
         if (app->move_connected[0] && app->move_connected[1]) return;
-        if (isMoveSourceIdAssigned(app, index)) continue;
+
+        for (s = 0; s < MOVE_COUNT; ++s) {
+            if (app->move_connected[s] && app->move_source_id[s] == sid) {
+                sid = -1;
+                break;
+            }
+        }
+        if (sid < 0) continue;
 
         if (!app->move_connected[0]) target_slot = 0;
         else if (!app->move_connected[1]) target_slot = 1;
@@ -179,9 +189,45 @@ void deviceConnectAvailableMoves(AppContext *app)
             continue;
         }
 
+        {
+            int con_type = psmove_connection_type(move);
+            bool keep = false;
+
+            if (con_type == Conn_Bluetooth) {
+                keep = true;
+            } else {
+                bool has_bt = false;
+                for (s = 0; s < MOVE_COUNT; ++s) {
+                    if (app->move_connected[s] && app->moves[s] &&
+                        psmove_connection_type(app->moves[s]) == Conn_Bluetooth) {
+                        has_bt = true;
+                        break;
+                    }
+                }
+                keep = !has_bt;
+            }
+
+            if (keep) {
+                int test_ok = 0, test_bad = 0;
+                while (test_ok + test_bad < 3 && psmove_poll(move)) {
+                    int ax_t, ay_t, az_t;
+                    psmove_get_accelerometer(move, &ax_t, &ay_t, &az_t);
+                    if (ax_t >= -1000) ++test_ok; else ++test_bad;
+                }
+                keep = test_ok > 0;
+            }
+
+            if (!keep) {
+                if (serial) psmove_free_mem(serial);
+                psmove_disconnect(move);
+                continue;
+            }
+        }
+
         app->moves[target_slot] = move;
         app->move_connected[target_slot] = true;
-        app->move_source_id[target_slot] = index;
+        ++newly_connected;
+        app->move_source_id[target_slot] = source_ids[index];
         if (serial && serial[0]) {
             strncpy(app->move_serials[target_slot], serial, MOVE_SERIAL_LENGTH - 1);
             app->move_serials[target_slot][MOVE_SERIAL_LENGTH - 1] = '\0';
@@ -203,10 +249,9 @@ void deviceConnectAvailableMoves(AppContext *app)
     }
 }
 
-void deviceConnectNavigatorsIfNeeded(AppContext *app)
+void deviceConnectNavigatorsIfNeeded(AppContext *app, DWORD now)
 {
     char device_path[NAVIGATOR_PATH_LENGTH];
-    DWORD now;
     int device_count;
     int device_id;
     int navigator_index;
@@ -216,12 +261,12 @@ void deviceConnectNavigatorsIfNeeded(AppContext *app)
     }
 
     for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT; ++navigator_index) {
-        if (app->navigators[navigator_index] && !psnavigatorIsConnected(app->navigators[navigator_index])) {
-            deviceHandleNavigatorDisconnect(app, navigator_index);
+        if (app->navigators[navigator_index] && !navDeviceIsConnected(app->navigators[navigator_index])) {
+            deviceHandleNavigatorDisconnect(app, navigator_index, now);
         }
     }
 
-    now = GetTickCount();
+    
 
     if (app->navigator_reconnect_tick != 0 &&
         (DWORD)(now - app->navigator_reconnect_tick) < 500) {
@@ -230,30 +275,39 @@ void deviceConnectNavigatorsIfNeeded(AppContext *app)
 
     app->navigator_reconnect_tick = now;
 
-    device_count = psnavigatorGetDeviceCount();
+    device_count = navDeviceGetAvailableCount();
     if (device_count <= 0) {
         return;
     }
 
     for (device_id = 0; device_id < device_count; ++device_id) {
-        PSNavResult path_result;
-        PSNavResult connect_result;
         int target_slot = -1;
 
-        path_result = psnavigatorGetDevicePathById(device_id, device_path, (int)sizeof(device_path));
-        if (path_result != PSNAV_RESULT_OK) {
-            logWrite(
-                "navigator",
-                "Navigator enumeration failed for id=%d: %d (%s): %s",
-                device_id,
-                (int)path_result,
-                psnavigatorResultToString(path_result),
-                psnavigatorGetLastError(NULL)
-            );
+        if (!navDeviceGetIdentifier(device_id, device_path, (int)sizeof(device_path))) {
             continue;
         }
 
         if (isNavigatorPathAssigned(app, device_path)) {
+            continue;
+        }
+
+        {
+            int cooldown_index;
+            for (cooldown_index = 0; cooldown_index < NAVIGATOR_COUNT; ++cooldown_index) {
+                if (app->navigator_cooldown_path[cooldown_index][0] != '\0' &&
+                    strcmp(app->navigator_cooldown_path[cooldown_index], device_path) == 0 &&
+                    (DWORD)(now - app->navigator_cooldown_tick[cooldown_index]) < DEVICE_LIVENESS_POLL_MS) {
+                    break;
+                }
+            }
+            if (cooldown_index < NAVIGATOR_COUNT) {
+                logWrite("navigator", "device %s on cooldown, skip", device_path);
+                continue;
+            }
+        }
+
+        if (!navDeviceIsReachable(device_path)) {
+            logWrite("navigator", "device %s not reachable, skip", device_path);
             continue;
         }
 
@@ -268,29 +322,40 @@ void deviceConnectNavigatorsIfNeeded(AppContext *app)
             return;
         }
 
-        app->navigators[target_slot] = deviceConnectNavigatorByPathWithResult(device_path, &connect_result);
+        app->navigators[target_slot] = deviceConnectNavigatorByIdentifier(device_path);
         if (app->navigators[target_slot]) {
             navigatorProfileResetRuntimeState(&app->navigator_profiles[target_slot]);
             strncpy(app->navigator_paths[target_slot], device_path, sizeof(app->navigator_paths[target_slot]) - 1);
             app->navigator_paths[target_slot][sizeof(app->navigator_paths[target_slot]) - 1] = '\0';
             logWrite(
                 "navigator",
-                "Navigator%d connected (id=%d): %s",
+                "Navigator%d connected: %s",
                 target_slot + 1,
-                device_id,
                 app->navigator_paths[target_slot]
             );
         } else {
             logWrite(
                 "navigator",
-                "Navigator connect failed for id=%d: %d (%s): %s",
-                device_id,
-                (int)connect_result,
-                psnavigatorResultToString(connect_result),
-                psnavigatorGetLastError(NULL)
+                "Navigator connect failed for id=%d",
+                device_id
             );
         }
     }
+}
+
+void deviceCheckAlive(AppContext *app, DWORD now)
+{
+    int index;
+
+    if (!app) return;
+
+    for (index = 0; index < MOVE_COUNT; ++index) {
+        if (app->moves[index]) {
+            psmove_poll(app->moves[index]);
+        }
+    }
+
+    (void)now;
 }
 
 bool deviceHasAnyInputConnected(const AppContext *app)
@@ -298,6 +363,7 @@ bool deviceHasAnyInputConnected(const AppContext *app)
     int navigator_index;
     if (!app) return false;
     if (app->move_connected[0] || app->move_connected[1]) return true;
+    if (app->move_count_cache > 0) return true;
     for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT; ++navigator_index) {
         if (app->navigators[navigator_index]) return true;
     }

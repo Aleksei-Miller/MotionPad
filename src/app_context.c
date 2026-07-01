@@ -8,7 +8,7 @@ void appContextInit(AppContext *app)
     int navigator_index;
     if (!app) return;
     ZeroMemory(app, sizeof(*app));
-    app->emulation_enabled = true;
+    app->output_enabled = true;
     app->running = 1;
     app->config_dirty = 0;
     app->profile_switch_pending = 0;
@@ -18,6 +18,7 @@ void appContextInit(AppContext *app)
     for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
         app->move_source_id[move_index] = -1;
         app->move_serials[move_index][0] = '\0';
+        app->move_battery_raw[move_index] = -1;
     }
     app->navigator_reconnect_tick = 0;
     for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT; ++navigator_index) {

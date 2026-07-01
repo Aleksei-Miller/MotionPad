@@ -5,5 +5,7 @@
 
 bool profileWatcherStart(AppContext *app);
 void profileWatcherStop(AppContext *app);
+bool settingsWatcherStart(AppContext *app);
+void settingsWatcherStop(AppContext *app);
 
 #endif

@@ -59,9 +59,8 @@ static void applyNavigatorMouseDelta(NavigatorProfile *profile, float delta_x, f
     sendMouseMoveDelta(dx, dy);
 }
 
-static void applyNavigatorSensorBinding(NavigatorProfile *profile, NavigatorSensorBinding *binding, int processed_value, const AxisSettings *axis, NavigatorAxisInput input, int repeat_ms, int wheelRepeatMs, XUSB_REPORT *report)
+static void applyNavigatorSensorBinding(NavigatorProfile *profile, NavigatorSensorBinding *binding, int processed_value, const AxisSettings *axis, NavigatorAxisInput input, int repeat_ms, int mouseRepeatMs, int wheelRepeatMs, XUSB_REPORT *report, DWORD now_tick)
 {
-    DWORD now_tick = GetTickCount();
     int j;
     float mouse_dx = 0.0f, mouse_dy = 0.0f;
     int magnitude;
@@ -89,7 +88,7 @@ static void applyNavigatorSensorBinding(NavigatorProfile *profile, NavigatorSens
             case ActionKind_Keyboard:
             case ActionKind_MouseButton:
             case ActionKind_XboxButton:
-                applySensorButtonLikeAction(action, active, now_tick, repeat_ms, wheelRepeatMs, report);
+                applySensorButtonLikeAction(action, active, now_tick, repeat_ms, mouseRepeatMs, wheelRepeatMs, report);
                 break;
             default:
                 break;
@@ -100,24 +99,24 @@ static void applyNavigatorSensorBinding(NavigatorProfile *profile, NavigatorSens
     }
 }
 
-static bool isNavigatorButtonPressed(PSNavigator *nav, NavigatorButtonInput input)
+static bool isNavigatorButtonPressed(NavDevice *nav, NavigatorButtonInput input)
 {
     switch (input) {
-        case NavigatorButtonInput_Cross: return psnavigatorGetButton(nav, PSNAV_BUTTON_CROSS) ? true : false;
-        case NavigatorButtonInput_Circle: return psnavigatorGetButton(nav, PSNAV_BUTTON_CIRCLE) ? true : false;
-        case NavigatorButtonInput_L1: return psnavigatorGetButton(nav, PSNAV_BUTTON_L1) ? true : false;
-        case NavigatorButtonInput_L2: return psnavigatorGetButton(nav, PSNAV_BUTTON_L2) ? true : false;
-        case NavigatorButtonInput_L3: return psnavigatorGetButton(nav, PSNAV_BUTTON_L3) ? true : false;
-        case NavigatorButtonInput_PS: return psnavigatorGetButton(nav, PSNAV_BUTTON_PS) ? true : false;
-        case NavigatorButtonInput_Up: return psnavigatorGetButton(nav, PSNAV_BUTTON_UP) ? true : false;
-        case NavigatorButtonInput_Right: return psnavigatorGetButton(nav, PSNAV_BUTTON_RIGHT) ? true : false;
-        case NavigatorButtonInput_Down: return psnavigatorGetButton(nav, PSNAV_BUTTON_DOWN) ? true : false;
-        case NavigatorButtonInput_Left: return psnavigatorGetButton(nav, PSNAV_BUTTON_LEFT) ? true : false;
+        case NavigatorButtonInput_Cross: return navDeviceGetButton(nav, NavDevBtn_CROSS);
+        case NavigatorButtonInput_Circle: return navDeviceGetButton(nav, NavDevBtn_CIRCLE);
+        case NavigatorButtonInput_L1: return navDeviceGetButton(nav, NavDevBtn_L1);
+        case NavigatorButtonInput_L2: return navDeviceGetButton(nav, NavDevBtn_L2);
+        case NavigatorButtonInput_L3: return navDeviceGetButton(nav, NavDevBtn_L3);
+        case NavigatorButtonInput_PS: return navDeviceGetButton(nav, NavDevBtn_PS);
+        case NavigatorButtonInput_Up: return navDeviceGetButton(nav, NavDevBtn_UP);
+        case NavigatorButtonInput_Right: return navDeviceGetButton(nav, NavDevBtn_RIGHT);
+        case NavigatorButtonInput_Down: return navDeviceGetButton(nav, NavDevBtn_DOWN);
+        case NavigatorButtonInput_Left: return navDeviceGetButton(nav, NavDevBtn_LEFT);
         default: return false;
     }
 }
 
-static void applyNavigatorButtonBindingArray(PSNavigator *nav, NavigatorButtonBinding *bindings, int binding_count, int trigger_value, XUSB_REPORT *report, bool *alt_mode_requested)
+static void applyNavigatorButtonBindingArray(NavDevice *nav, NavigatorButtonBinding *bindings, int binding_count, int trigger_value, XUSB_REPORT *report, bool *alt_mode_requested, int repeatMs, int mouseRepeatMs, int wheelRepeatMs, DWORD now)
 {
     int i;
     int j;
@@ -139,15 +138,14 @@ static void applyNavigatorButtonBindingArray(PSNavigator *nav, NavigatorButtonBi
             if (binding->input == NavigatorButtonInput_L2 && action->kind == ActionKind_XboxTrigger) {
                 setXboxAxisValue(report, action->data.xboxAxis, trigger_value);
             } else {
-                updateDigitalButtonAction(action, pressed, report, trigger_value);
+                updateDigitalButtonAction(action, pressed, report, trigger_value, repeatMs, mouseRepeatMs, wheelRepeatMs, now);
             }
         }
     }
 }
 
-void processNavigatorInputDevice(PSNavigator *nav, NavigatorProfile *profile, XUSB_REPORT *report)
+void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB_REPORT *report, DWORD now)
 {
-    PSNavResult poll_result;
     int sx;
     int sy;
     int px;
@@ -155,6 +153,7 @@ void processNavigatorInputDevice(PSNavigator *nav, NavigatorProfile *profile, XU
     int i;
     int j;
     int repeat_ms;
+    int mouse_repeat_ms;
     int raw_trigger_value;
     int trigger_value;
     bool alt_mode_requested = false;
@@ -162,30 +161,28 @@ void processNavigatorInputDevice(PSNavigator *nav, NavigatorProfile *profile, XU
     AxisSettings *active_stick_config;
     AxisSettings *active_trigger_config;
 
-    if (!nav || !profile || !report || !psnavigatorIsConnected(nav)) {
+    if (!nav || !profile || !report || !navDeviceIsConnected(nav)) {
         return;
     }
 
-    poll_result = psnavigatorPoll(nav);
-    if (poll_result != PSNAV_RESULT_OK) {
+    if (!navDevicePoll(nav, now)) {
         logWrite(
             "navigator",
-            "poll failed: %d (%s): %s",
-            (int)poll_result,
-            psnavigatorResultToString(poll_result),
-            psnavigatorGetLastError(nav)
+            "poll failed: %s",
+            navDeviceGetLastError(nav)
         );
         return;
     }
 
-    raw_trigger_value = psnavigatorGetAxis(nav, PSNAV_AXIS_TRIGGER);
+    raw_trigger_value = navDeviceGetAxis(nav, NavDevAxis_TRIGGER);
     trigger_value = applyTriggerSettings(raw_trigger_value, &profile->triggerConfig);
 
-    applyNavigatorButtonBindingArray(nav, profile->buttonBindings, profile->buttonBindingCount, trigger_value, report, &alt_mode_requested);
-
     repeat_ms = profile->repeatMs;
-    sx = psnavigatorGetAxis(nav, PSNAV_AXIS_STICK_X);
-    sy = psnavigatorGetAxis(nav, PSNAV_AXIS_STICK_Y);
+    mouse_repeat_ms = profile->mouseRepeatMs;
+    applyNavigatorButtonBindingArray(nav, profile->buttonBindings, profile->buttonBindingCount, trigger_value, report, &alt_mode_requested, repeat_ms, mouse_repeat_ms, profile->wheelRepeatMs, now);
+
+    sx = navDeviceGetAxis(nav, NavDevAxis_STICK_X);
+    sy = navDeviceGetAxis(nav, NavDevAxis_STICK_Y);
 
     if (profile->altModeActive != alt_mode_requested) {
         for (i = 0; i < NavigatorAxisInput_Count; ++i) {
@@ -203,17 +200,17 @@ void processNavigatorInputDevice(PSNavigator *nav, NavigatorProfile *profile, XU
 
     if (alt_mode_requested) {
         trigger_value = applyTriggerSettings(raw_trigger_value, &profile->altTriggerConfig);
-        applyNavigatorButtonBindingArray(nav, profile->altButtonBindings, profile->altButtonBindingCount, trigger_value, report, NULL);
+        applyNavigatorButtonBindingArray(nav, profile->altButtonBindings, profile->altButtonBindingCount, trigger_value, report, NULL, repeat_ms, mouse_repeat_ms, profile->wheelRepeatMs, now);
     }
 
     active_sensor_bindings = alt_mode_requested ? profile->altSensorBindings : profile->sensorBindings;
     active_trigger_config = alt_mode_requested ? &profile->altTriggerConfig : &profile->triggerConfig;
     trigger_value = applyTriggerSettings(raw_trigger_value, active_trigger_config);
     active_stick_config = alt_mode_requested ? profile->altStickConfig : profile->stickConfig;
-    px = applyAxisDeadzone(sx, &active_stick_config[0]);
-    py = applyAxisDeadzone(sy, &active_stick_config[1]);
+    px = applyStickAxis(sx, &active_stick_config[0]);
+    py = applyStickAxis(sy, &active_stick_config[1]);
 
-#define NAP(inputName,val,cfg) applyNavigatorSensorBinding(profile, &active_sensor_bindings[inputName], val, cfg, inputName, repeat_ms, profile->wheelRepeatMs, report)
+#define NAP(inputName,val,cfg) if (active_sensor_bindings[inputName].actionCount > 0) applyNavigatorSensorBinding(profile, &active_sensor_bindings[inputName], val, cfg, inputName, repeat_ms, mouse_repeat_ms, profile->wheelRepeatMs, report, now)
     NAP(NavigatorAxisInput_X, px, &active_stick_config[0]);
     NAP(NavigatorAxisInput_X_Pos, px, &active_stick_config[0]);
     NAP(NavigatorAxisInput_X_Neg, px, &active_stick_config[0]);
