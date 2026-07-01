@@ -1,10 +1,21 @@
+#ifdef __TINYC__
+#ifndef PROCESS_QUERY_LIMITED_INFORMATION
+#define PROCESS_QUERY_LIMITED_INFORMATION 0x1000
+#endif
+#endif
+
 #include "tray_ui.h"
 #include "rumble_manager.h"
 #include "vigem_manager.h"
 #include "logger.h"
-#include "psnavigator.h"
+#include "nav_device.h"
 #include "profile.h"
 #include "profile_watcher.h"
+
+#ifdef __TINYC__
+typedef BOOL (WINAPI *QFPIWFunc)(HANDLE, DWORD, LPWSTR, PDWORD);
+static QFPIWFunc qfpiw = NULL;
+#endif
 
 static AppContext *g_app = NULL;
 
@@ -14,6 +25,7 @@ typedef struct TrayProfileEntry {
     wchar_t path[MAX_PATH];
     wchar_t relative_path[MAX_PATH];
     wchar_t label[128];
+    wchar_t exe_path[MAX_PATH];
 } TrayProfileEntry;
 
 static TrayProfileEntry g_tray_profiles[MAX_TRAY_PROFILES];
@@ -33,24 +45,11 @@ static void logLastErrorW(const wchar_t *prefix)
     }
 }
 
-static int batteryLevelToPercent(PSMove *move)
+static int navigatorBatteryRawToPercent(int battery_raw, bool is_sdl3)
 {
-    if (!move) return 0;
-    switch (psmove_get_battery(move)) {
-        case Batt_MIN: return 0;
-        case Batt_20Percent: return 20;
-        case Batt_40Percent: return 40;
-        case Batt_60Percent: return 60;
-        case Batt_80Percent: return 80;
-        case Batt_MAX: return 100;
-        case Batt_CHARGING: return 100;
-        case Batt_CHARGING_DONE: return 100;
-        default: return 0;
+    if (is_sdl3) {
+        return battery_raw;
     }
-}
-
-static int navigatorBatteryRawToPercent(int battery_raw)
-{
     switch (battery_raw) {
         case 0x00: return 0;
         case 0x01: return 20;
@@ -204,7 +203,7 @@ static void loadProfileMenuLabel(const wchar_t *profile_path, wchar_t *out_label
         return;
     }
 
-    GetPrivateProfileStringW(L"Misc", L"Name", L"", out_label, (DWORD)out_count, profile_path);
+    GetPrivateProfileStringW(L"Profile", L"Name", L"", out_label, (DWORD)out_count, profile_path);
     trimWideStringInPlace(out_label);
     if (out_label[0] == L'\0') {
         getFileNameWithoutExtension(profile_path, out_label, out_count);
@@ -213,9 +212,11 @@ static void loadProfileMenuLabel(const wchar_t *profile_path, wchar_t *out_label
 
 static int getProfileSortRank(const wchar_t *relative_path)
 {
-    if (_wcsicmp(relative_path, L"profiles\\default.ini") == 0) return 0;
-    if (_wcsicmp(relative_path, L"profiles\\default - xinput only.ini") == 0) return 1;
-    return 2;
+    if (_wcsicmp(relative_path, L"profiles\\hybrid mode.ini") == 0) return 0;
+    if (_wcsicmp(relative_path, L"profiles\\controller mode.ini") == 0) return 1;
+    if (_wcsicmp(relative_path, L"profiles\\arrow mode.ini") == 0) return 2;
+    if (_wcsicmp(relative_path, L"profiles\\wasd mode.ini") == 0) return 3;
+    return 4;
 }
 
 static int compareTrayProfiles(const void *left, const void *right)
@@ -281,6 +282,9 @@ static void refreshTrayProfiles(void)
         }
         entry->relative_path[MAX_PATH - 1] = L'\0';
         loadProfileMenuLabel(entry->path, entry->label, sizeof(entry->label) / sizeof(entry->label[0]));
+        entry->exe_path[0] = L'\0';
+        GetPrivateProfileStringW(L"Profile", L"Path", L"", entry->exe_path, MAX_PATH, entry->path);
+        trimWideStringInPlace(entry->exe_path);
         ++g_tray_profile_count;
     } while (FindNextFileW(find_handle, &find_data));
 
@@ -325,17 +329,12 @@ static void appendProfilesMenu(HMENU menu_handle, const AppContext *app)
                 g_tray_profiles[profile_index].label
             );
 
-            if (profile_index == 0 &&
-                g_tray_profile_count > 1 &&
-                _wcsicmp(g_tray_profiles[0].relative_path, L"profiles\\default.ini") == 0 &&
-                (g_tray_profile_count < 2 || _wcsicmp(g_tray_profiles[1].relative_path, L"profiles\\default - xinput only.ini") != 0)) {
-                AppendMenuW(profiles_menu, MF_SEPARATOR, 0, NULL);
-            }
-            if (profile_index == 1 &&
-                g_tray_profile_count > 2 &&
-                _wcsicmp(g_tray_profiles[0].relative_path, L"profiles\\default.ini") == 0 &&
-                _wcsicmp(g_tray_profiles[1].relative_path, L"profiles\\default - xinput only.ini") == 0) {
-                AppendMenuW(profiles_menu, MF_SEPARATOR, 0, NULL);
+            if (profile_index + 1 < g_tray_profile_count) {
+                int current_rank = getProfileSortRank(g_tray_profiles[profile_index].relative_path);
+                int next_rank = getProfileSortRank(g_tray_profiles[profile_index + 1].relative_path);
+                if (current_rank != next_rank && (current_rank == 1 || current_rank == 3)) {
+                    AppendMenuW(profiles_menu, MF_SEPARATOR, 0, NULL);
+                }
             }
         }
     }
@@ -361,6 +360,7 @@ static void traySelectProfile(AppContext *app, UINT command_id)
         return;
     }
 
+    app->auto_triggered_exe[0] = L'\0';
     wcsncpy(app->pending_profile_path, selected_profile->path, MAX_PATH - 1);
     app->pending_profile_path[MAX_PATH - 1] = L'\0';
     InterlockedExchange(&app->profile_switch_pending, 1);
@@ -402,6 +402,116 @@ void trayApplyPendingProfileSelection(AppContext *app)
     trayUpdateTooltip(app);
 }
 
+static void getForegroundProcessName(wchar_t *out_name, size_t out_count)
+{
+    HWND foreground;
+    DWORD pid;
+    HANDLE process;
+    DWORD size;
+    wchar_t full_path[MAX_PATH];
+    wchar_t *slash;
+
+    if (!out_name || out_count == 0) return;
+    out_name[0] = L'\0';
+
+    foreground = GetForegroundWindow();
+    if (!foreground) return;
+
+    if (!GetWindowThreadProcessId(foreground, &pid)) return;
+    if (pid == 0) return;
+
+    process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process) return;
+
+    size = MAX_PATH;
+    full_path[0] = L'\0';
+
+#if defined(__TINYC__)
+    if (!qfpiw) {
+        HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
+        if (k32) qfpiw = (QFPIWFunc)GetProcAddress(k32, "QueryFullProcessImageNameW");
+    }
+    if (qfpiw && qfpiw(process, 0, full_path, &size) && full_path[0] != L'\0') {
+#else
+    if (QueryFullProcessImageNameW(process, 0, full_path, &size) && full_path[0] != L'\0') {
+#endif
+        slash = wcsrchr(full_path, L'\\');
+        if (slash) {
+            wcsncpy(out_name, slash + 1, out_count - 1);
+            out_name[out_count - 1] = L'\0';
+        } else {
+            wcsncpy(out_name, full_path, out_count - 1);
+            out_name[out_count - 1] = L'\0';
+        }
+    }
+    CloseHandle(process);
+}
+
+static bool profileExeMatches(const wchar_t *profile_exe_path, const wchar_t *foreground_exe)
+{
+    const wchar_t *slash;
+
+    if (!profile_exe_path || profile_exe_path[0] == L'\0' || !foreground_exe) return false;
+
+    slash = wcsrchr(profile_exe_path, L'\\');
+    if (slash) {
+        return _wcsicmp(foreground_exe, slash + 1) == 0;
+    }
+    return _wcsicmp(foreground_exe, profile_exe_path) == 0;
+}
+
+void trayCheckAutoProfile(AppContext *app, DWORD now)
+{
+    static DWORD last_check = 0;
+    wchar_t exe_name[MAX_PATH];
+    UINT i;
+
+    if (!app || !app->use_auto_profile) return;
+    if ((DWORD)(now - last_check) < 200) return;
+    last_check = now;
+    if (InterlockedCompareExchange(&app->profile_switch_pending, 0, 0)) return;
+
+    if (g_tray_profile_count == 0) {
+        refreshTrayProfiles();
+    }
+
+    getForegroundProcessName(exe_name, MAX_PATH);
+    if (exe_name[0] == L'\0') return;
+
+    for (i = 0; i < g_tray_profile_count; ++i) {
+        if (g_tray_profiles[i].exe_path[0] == L'\0') continue;
+        if (!profileExeMatches(g_tray_profiles[i].exe_path, exe_name)) continue;
+        if (profilePathsEqual(app->config_path, g_tray_profiles[i].path)) {
+            wcsncpy(app->auto_triggered_exe, exe_name, MAX_PATH - 1);
+            app->auto_triggered_exe[MAX_PATH - 1] = L'\0';
+            return;
+        }
+
+        if (app->auto_triggered_exe[0] == L'\0') {
+            wcsncpy(app->auto_base_path, app->config_path, MAX_PATH - 1);
+            app->auto_base_path[MAX_PATH - 1] = L'\0';
+        }
+        wcsncpy(app->auto_triggered_exe, exe_name, MAX_PATH - 1);
+        app->auto_triggered_exe[MAX_PATH - 1] = L'\0';
+
+        wcsncpy(app->pending_profile_path, g_tray_profiles[i].path, MAX_PATH - 1);
+        app->pending_profile_path[MAX_PATH - 1] = L'\0';
+        InterlockedExchange(&app->profile_switch_pending, 1);
+        logWriteW("tray", L"auto-profile: window=%ls (%ls)", exe_name, g_tray_profiles[i].label);
+        return;
+    }
+
+    if (app->auto_triggered_exe[0] != L'\0' &&
+        _wcsicmp(exe_name, app->auto_triggered_exe) != 0 &&
+        !profilePathsEqual(app->config_path, app->auto_base_path)) {
+        wcsncpy(app->pending_profile_path, app->auto_base_path, MAX_PATH - 1);
+        app->pending_profile_path[MAX_PATH - 1] = L'\0';
+        app->auto_triggered_exe[0] = L'\0';
+        InterlockedExchange(&app->profile_switch_pending, 1);
+        logWriteW("tray", L"auto-profile: revert to base");
+    }
+}
+
 static void buildBatteryMenuText(const AppContext *app, wchar_t *out_text, size_t out_count)
 {
     int navigator_index;
@@ -419,61 +529,101 @@ static void buildBatteryMenuText(const AppContext *app, wchar_t *out_text, size_
         if (app->navigators[navigator_index]) ++navigator_count;
     }
     if (app->moves[0]) {
-        int percent = batteryLevelToPercent(app->moves[0]);
-        pos += (size_t)_snwprintf(
-            out_text + pos,
-            out_count - pos,
-            (move_count == 1) ? L"Move: %d%%" : L"Move 1: %d%%",
-            percent
-        );
+        int raw = app->move_battery_raw[0];
+        if (raw == Batt_CHARGING || raw == Batt_CHARGING_DONE) {
+            pos += (size_t)_snwprintf(
+                out_text + pos, out_count - pos,
+                (move_count == 1) ? L"Move: USB" : L"Move 1: USB"
+            );
+        } else if (raw < 0) {
+            bool is_usb = psmove_connection_type(app->moves[0]) == Conn_USB;
+            pos += (size_t)_snwprintf(
+                out_text + pos, out_count - pos,
+                is_usb ? ((move_count == 1) ? L"Move: USB" : L"Move 1: USB")
+                       : ((move_count == 1) ? L"Move" : L"Move 1")
+            );
+        } else {
+            int pct;
+            switch (raw) {
+                case Batt_MIN: pct = 0; break;
+                case Batt_20Percent: pct = 20; break;
+                case Batt_40Percent: pct = 40; break;
+                case Batt_60Percent: pct = 60; break;
+                case Batt_80Percent: pct = 80; break;
+                case Batt_MAX: pct = 100; break;
+                default: pct = 0; break;
+            }
+            pos += (size_t)_snwprintf(
+                out_text + pos, out_count - pos,
+                (move_count == 1) ? L"Move: %d%%" : L"Move 1: %d%%",
+                pct
+            );
+        }
     }
 
     if (pos < out_count && app->moves[1]) {
-        int percent = batteryLevelToPercent(app->moves[1]);
-        pos += (size_t)_snwprintf(out_text + pos, out_count - pos, L" | Move 2: %d%%", percent);
+        int raw = app->move_battery_raw[1];
+        if (raw == Batt_CHARGING || raw == Batt_CHARGING_DONE) {
+            pos += (size_t)_snwprintf(
+                out_text + pos, out_count - pos, L" | Move 2: USB"
+            );
+        } else if (raw < 0) {
+            pos += (size_t)_snwprintf(
+                out_text + pos, out_count - pos,
+                psmove_connection_type(app->moves[1]) == Conn_USB ? L" | Move 2: USB" : L" | Move 2"
+            );
+        } else {
+            int pct;
+            switch (raw) {
+                case Batt_MIN: pct = 0; break;
+                case Batt_20Percent: pct = 20; break;
+                case Batt_40Percent: pct = 40; break;
+                case Batt_60Percent: pct = 60; break;
+                case Batt_80Percent: pct = 80; break;
+                case Batt_MAX: pct = 100; break;
+                default: pct = 0; break;
+            }
+            pos += (size_t)_snwprintf(
+                out_text + pos, out_count - pos, L" | Move 2: %d%%",
+                pct
+            );
+        }
     }
 
     for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT && pos < out_count; ++navigator_index) {
         if (app->navigators[navigator_index]) {
-            int battery_raw = psnavigatorGetBatteryRaw(app->navigators[navigator_index]);
+            bool is_sdl3 = navDeviceGetType(app->navigators[navigator_index]) == NavDevType_SDL3;
+            int battery_raw = navDeviceGetBattery(app->navigators[navigator_index]);
             int percent = -1;
 
-            if (battery_raw >= 0) {
-                percent = navigatorBatteryRawToPercent(battery_raw);
+            if (battery_raw == NAV_BATTERY_USB) {
+                percent = NAV_BATTERY_USB;
+            } else if (battery_raw >= 0) {
+                percent = navigatorBatteryRawToPercent(battery_raw, is_sdl3);
             }
 
-            if (percent < 0) {
-                if (navigator_count == 1) {
-                    pos += (size_t)_snwprintf(
-                        out_text + pos,
-                        out_count - pos,
-                        pos ? L" | Nav: USB" : L"Nav: USB"
-                    );
-                } else {
-                    pos += (size_t)_snwprintf(
-                        out_text + pos,
-                        out_count - pos,
-                        pos ? L" | Nav %d: USB" : L"Nav %d: USB",
-                        navigator_index + 1
-                    );
-                }
+            if (percent == NAV_BATTERY_USB) {
+                pos += (size_t)_snwprintf(
+                    out_text + pos,
+                    out_count - pos,
+                    pos ? L" | Nav %d: USB" : L"Nav %d: USB",
+                    navigator_index + 1
+                );
+            } else if (percent < 0) {
+                pos += (size_t)_snwprintf(
+                    out_text + pos,
+                    out_count - pos,
+                    pos ? L" | Nav %d" : L"Nav %d",
+                    navigator_index + 1
+                );
             } else {
-                if (navigator_count == 1) {
-                    pos += (size_t)_snwprintf(
-                        out_text + pos,
-                        out_count - pos,
-                        pos ? L" | Nav: %d%%" : L"Nav: %d%%",
-                        percent
-                    );
-                } else {
-                    pos += (size_t)_snwprintf(
-                        out_text + pos,
-                        out_count - pos,
-                        pos ? L" | Nav %d: %d%%" : L"Nav %d: %d%%",
-                        navigator_index + 1,
-                        percent
-                    );
-                }
+                pos += (size_t)_snwprintf(
+                    out_text + pos,
+                    out_count - pos,
+                    pos ? L" | Nav %d: %d%%" : L"Nav %d: %d%%",
+                    navigator_index + 1,
+                    percent
+                );
             }
         }
     }
@@ -501,9 +651,9 @@ void trayUpdateTooltip(AppContext *app)
 void trayToggleEmulation(AppContext *app)
 {
     if (!app) return;
-    app->emulation_enabled = !app->emulation_enabled;
+    app->output_enabled = !app->output_enabled;
     profileSaveSettings(app);
-    if (!app->emulation_enabled) {
+    if (!app->output_enabled) {
         logWrite("main", "emulation disabled");
         appContextStopEmulation(app);
     } else {
@@ -593,7 +743,7 @@ static LRESULT CALLBACK trayWindowProc(HWND window_handle, UINT message, WPARAM 
                 HMENU menu_handle = CreatePopupMenu();
                 if (menu_handle && g_app) {
                     POINT cursor_pos;
-                    UINT toggle_flags = MF_STRING | (g_app->emulation_enabled ? MF_UNCHECKED : MF_CHECKED);
+                    UINT toggle_flags = MF_STRING | (g_app->output_enabled ? MF_UNCHECKED : MF_CHECKED);
                     wchar_t battery_text[64];
                     buildBatteryMenuText(g_app, battery_text, 64);
                     AppendMenuW(menu_handle, MF_STRING | MF_GRAYED, 0, battery_text);

@@ -1,6 +1,7 @@
 #include "input_actions.h"
 #include "profile.h"
 #include "logger.h"
+#include <math.h>
 
 void sendKeyboardEvent(UINT vk_code, bool is_down)
 {
@@ -185,12 +186,12 @@ void setXboxAxisValue(XUSB_REPORT *report, XboxAxisKind axis, int value)
 {
     if (!report) return;
     switch (axis) {
-        case XboxAxisKind_LT: if ((BYTE)value > report->bLeftTrigger) report->bLeftTrigger = (BYTE)value; break;
-        case XboxAxisKind_RT: if ((BYTE)value > report->bRightTrigger) report->bRightTrigger = (BYTE)value; break;
-        case XboxAxisKind_LX: if (abs(value) > abs(report->sThumbLX)) report->sThumbLX = (SHORT)value; break;
-        case XboxAxisKind_LY: if (abs(value) > abs(report->sThumbLY)) report->sThumbLY = (SHORT)value; break;
-        case XboxAxisKind_RX: if (abs(value) > abs(report->sThumbRX)) report->sThumbRX = (SHORT)value; break;
-        case XboxAxisKind_RY: if (abs(value) > abs(report->sThumbRY)) report->sThumbRY = (SHORT)value; break;
+        case XboxAxisKind_LT: report->bLeftTrigger = (BYTE)value; break;
+        case XboxAxisKind_RT: report->bRightTrigger = (BYTE)value; break;
+        case XboxAxisKind_LX: report->sThumbLX = (SHORT)value; break;
+        case XboxAxisKind_LY: report->sThumbLY = (SHORT)value; break;
+        case XboxAxisKind_RX: report->sThumbRX = (SHORT)value; break;
+        case XboxAxisKind_RY: report->sThumbRY = (SHORT)value; break;
         default: break;
     }
 }
@@ -220,7 +221,30 @@ int applyAxisDeadzone(int raw_value, const AxisSettings *axis)
     int magnitude, adjusted;
     if (!axis) return raw_value;
     if (axis->invert) raw_value = -raw_value;
-    raw_value = (int)((float)raw_value * axis->sensitivity);
+    if (axis->sensitivity != 1.0f) {
+        raw_value = (int)roundf((float)raw_value * axis->sensitivity);
+    }
+    magnitude = abs(raw_value);
+    if (magnitude <= axis->deadzone) return 0;
+    adjusted = magnitude - axis->deadzone;
+    return raw_value < 0 ? -adjusted : adjusted;
+}
+
+int applyStickAxis(int raw_value, const AxisSettings *axis)
+{
+    int magnitude, adjusted;
+    if (!axis) return raw_value;
+    if (axis->invert) raw_value = -raw_value;
+    if (axis->sensitivity > 0.0f && axis->sensitivity != 1.0f && raw_value != 0) {
+        float sign = raw_value > 0 ? 1.0f : -1.0f;
+        float max_val = raw_value > 0 ? 127.0f : 128.0f;
+        float norm = (float)abs(raw_value) / max_val;
+        if (norm > 1.0f) norm = 1.0f;
+        float curved = (float)pow((double)norm, 1.0 / (double)axis->sensitivity);
+        raw_value = (int)(sign * curved * 127.0f);
+    } else if (axis->sensitivity <= 0.0f) {
+        return 0;
+    }
     magnitude = abs(raw_value);
     if (magnitude <= axis->deadzone) return 0;
     adjusted = magnitude - axis->deadzone;
@@ -238,7 +262,13 @@ int applyTriggerSettings(int raw_value, const AxisSettings *axis)
         raw_value = 255 - raw_value;
     }
 
-    raw_value = (int)((float)raw_value * axis->sensitivity);
+    if (axis->sensitivity > 0.0f && axis->sensitivity != 1.0f) {
+        float norm = (float)raw_value / 255.0f;
+        float curved = (float)pow((double)norm, 1.0 / axis->sensitivity);
+        raw_value = (int)(curved * 255.0f);
+    } else if (axis->sensitivity <= 0.0f) {
+        return 0;
+    }
     raw_value = clampToByte(raw_value);
     if (raw_value <= axis->deadzone) {
         return 0;
@@ -259,31 +289,67 @@ int normalizeSensorToThumb(int raw_value)
     return clampToShort(raw_value * 16);
 }
 
-void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value)
+void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value, int repeatMs, int mouseRepeatMs, int wheelRepeatMs, DWORD now)
 {
     if (!action) return;
     switch (action->kind) {
         case ActionKind_Keyboard:
-            if (pressed != action->isDown) { sendKeyboardEvent(action->data.vkCode, pressed); action->isDown = pressed; }
+            if (pressed) {
+                if (!action->isDown) {
+                    sendKeyboardEvent(action->data.vkCode, true);
+                    action->isDown = true;
+                    action->lastRepeatTick = now;
+                } else if (repeatMs > 0 && now - action->lastRepeatTick >= (DWORD)repeatMs) {
+                    sendKeyboardEvent(action->data.vkCode, false);
+                    sendKeyboardEvent(action->data.vkCode, true);
+                    action->lastRepeatTick = now;
+                }
+            } else {
+                if (action->isDown) {
+                    sendKeyboardEvent(action->data.vkCode, false);
+                    action->isDown = false;
+                }
+            }
             break;
         case ActionKind_MouseButton:
-            if (pressed != action->isDown) { sendMouseButtonByKind(action->data.mouseButton, pressed); action->isDown = pressed; }
+            if (pressed) {
+                if (!action->isDown) {
+                    sendMouseButtonByKind(action->data.mouseButton, true);
+                    action->isDown = true;
+                    action->lastRepeatTick = now;
+                } else if (mouseRepeatMs > 0 && now - action->lastRepeatTick >= (DWORD)mouseRepeatMs) {
+                    sendMouseButtonByKind(action->data.mouseButton, false);
+                    sendMouseButtonByKind(action->data.mouseButton, true);
+                    action->lastRepeatTick = now;
+                }
+            } else {
+                if (action->isDown) {
+                    sendMouseButtonByKind(action->data.mouseButton, false);
+                    action->isDown = false;
+                }
+            }
             break;
         case ActionKind_MouseWheel:
+        case ActionKind_MouseWheel_Pos:
+        case ActionKind_MouseWheel_Neg: {
+            int wheel_delta;
+            int effective_repeat = wheelRepeatMs > 0 ? wheelRepeatMs : 50;
+            if (action->kind == ActionKind_MouseWheel_Neg) wheel_delta = -WHEEL_DELTA;
+            else wheel_delta = action->data.mouseWheel != 0 ? action->data.mouseWheel * WHEEL_DELTA : WHEEL_DELTA;
             if (pressed && !action->isDown) {
-                sendMouseWheelEvent(action->data.mouseWheel * WHEEL_DELTA);
+                sendMouseWheelEvent(wheel_delta);
                 action->isDown = true;
-                action->lastRepeatTick = GetTickCount();
+                action->lastRepeatTick = now;
             } else if (pressed && action->isDown) {
-                DWORD now = GetTickCount();
-                if (now - action->lastRepeatTick >= 50) {
-                    sendMouseWheelEvent(action->data.mouseWheel * WHEEL_DELTA);
+                if (now - action->lastRepeatTick >= (DWORD)effective_repeat) {
+                    sendMouseWheelEvent(wheel_delta);
                     action->lastRepeatTick = now;
                 }
             } else {
                 action->isDown = false;
             }
             break;
+        }
         case ActionKind_XboxButton:
             if (pressed) report->wButtons |= action->data.xboxButton;
             break;
@@ -297,7 +363,7 @@ void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *
     }
 }
 
-void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_tick, int repeat_ms, int wheelRepeatMs, XUSB_REPORT *report)
+void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_tick, int repeat_ms, int mouseRepeatMs, int wheelRepeatMs, XUSB_REPORT *report)
 {
     int effectiveRepeat = repeat_ms;
     if (action->kind == ActionKind_MouseWheel && wheelRepeatMs > 0) {
@@ -308,6 +374,7 @@ void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_ti
         if (action->isDown) {
             if (action->kind == ActionKind_Keyboard) sendKeyboardEvent(action->data.vkCode, false);
             else if (action->kind == ActionKind_MouseButton) sendMouseButtonByKind(action->data.mouseButton, false);
+            else if (action->kind == ActionKind_XboxButton) report->wButtons &= ~action->data.xboxButton;
         }
         action->isDown = false;
         action->lastRepeatTick = 0;
@@ -328,14 +395,17 @@ void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_ti
         action->lastRepeatTick = now_tick;
         return;
     }
-    if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)repeat_ms) {
-        if (action->kind == ActionKind_Keyboard) {
+    if (action->kind == ActionKind_Keyboard) {
+        if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)repeat_ms) {
             sendKeyboardEvent(action->data.vkCode, false);
             sendKeyboardEvent(action->data.vkCode, true);
-        } else if (action->kind == ActionKind_MouseButton) {
+            action->lastRepeatTick = now_tick;
+        }
+    } else if (action->kind == ActionKind_MouseButton) {
+        if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)mouseRepeatMs) {
             sendMouseButtonByKind(action->data.mouseButton, false);
             sendMouseButtonByKind(action->data.mouseButton, true);
+            action->lastRepeatTick = now_tick;
         }
-        action->lastRepeatTick = now_tick;
     }
 }

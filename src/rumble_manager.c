@@ -46,7 +46,7 @@ VOID CALLBACK rumbleHandleXboxCallback(PVIGEM_CLIENT client, PVIGEM_TARGET targe
     (void)client;
     (void)target;
     (void)led_number;
-    if (!app || !app->emulation_enabled) return;
+    if (!app || !app->output_enabled) return;
     rumble_large = rumbleAdaptMotor(app, large_motor, &app->rumble_config.large);
     rumble_small = rumbleAdaptMotor(app, small_motor, &app->rumble_config.small);
     if (app->moves[0] && app->moves[1]) {

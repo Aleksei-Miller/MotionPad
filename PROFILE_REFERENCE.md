@@ -4,7 +4,7 @@ This document describes the MotionPad profile format, supported sections, field 
 
 ## Overview
 
-MotionPad reads `settings.ini` from the executable directory. By default, it loads `profiles\default.ini`.
+MotionPad reads `settings.ini` from the executable directory. By default, it loads `profiles\hybrid mode.ini`.
 
 `settings.ini` contains global application settings:
 
@@ -13,9 +13,13 @@ Section`[General]`
 | Name | Description | Value |
 | --- | --- | --- |
 | `Path` | Active profile path | Relative path |
-| `Enable` | Enable or disable emulation | `0` or `1` |
+| `EnableOutput` | Enable or disable emulation | `0` or `1` |
+| `EnableTelemetry` | Stream controller state to named pipe | `0` or `1` |
+| `UseBthPS3` | Use BthPS3 Bluetooth backend for Navigation | `0` or `1` |
+| `UseAutoProfile` | Auto-switch profile based on foreground window | `0` or `1` |
+| `PollRateMs` | Main loop sleep in ms (1-100) | int |
 
-A profile file such as `profiles\default.ini` contains controller mappings and runtime settings.
+A profile file such as `profiles\hybrid mode.ini` contains controller mappings and runtime settings.
 
 ## Binding Prefixes
 
@@ -119,7 +123,7 @@ Examples:
 
 - Multiple actions can be assigned on one line, separated by spaces.
 - `alt_mode` activates alternate bindings while the assigned control is held.
-- `profiles\default.ini` is the canonical example profile.
+- `profiles\hybrid mode.ini` is the canonical example profile.
 
 
 ## Supported Profile Sections
@@ -133,11 +137,12 @@ Examples:
 | `[MoveGyroscope1]`, `[MoveGyroscope2]` | Main gyroscope settings for PS Move |
 | `[MoveAccelerometer1]`, `[MoveAccelerometer2]` | Main accelerometer settings for PS Move |
 | `[Rumble]` | PS Move rumble tuning and strength settings |
-| `[Navigator1]`, `[Navigator2]` | Main button and stick bindings for PS Navigator |
-| `[NavigatorTrigger1]`, `[NavigatorTrigger2]` | Main trigger settings for PS Navigator |
-| `[NavigatorStick1]`, `[NavigatorStick2]` | Main stick settings for PS Navigator |
-| `[RepeatMs]` | Repeat delay for repeating actions |
-| `[Misc]` | Profile metadata |
+| `[Navigation1]`, `[Navigation2]` | Main button and stick bindings for PS Navigation |
+| `[NavigationTrigger1]`, `[NavigationTrigger2]` | Main trigger settings for PS Navigation |
+| `[NavigationStick1]`, `[NavigationStick2]` | Main stick settings for PS Navigation |
+| `[Keyboard]` | Repeat delay for keyboard actions |
+| `[Mouse]` | Repeat delay and speed for mouse actions |
+| `[Profile]` | Profile metadata |
 
 ### Alternate Mode Sections
 
@@ -149,9 +154,9 @@ Examples:
 | `[AltMoveTrigger1]`, `[AltMoveTrigger2]` | Alternate trigger settings for PS Move |
 | `[AltMoveGyroscope1]`, `[AltMoveGyroscope2]` | Alternate gyroscope settings for PS Move |
 | `[AltMoveAccelerometer1]`, `[AltMoveAccelerometer2]` | Alternate accelerometer settings for PS Move |
-| `[AltNavigator1]`, `[AltNavigator2]` | Alternate button bindings for PS Navigator |
-| `[AltNavigatorTrigger1]`, `[AltNavigatorTrigger2]` | Alternate trigger settings for PS Navigator |
-| `[AltNavigatorStick1]`, `[AltNavigatorStick2]` | Alternate stick settings for PS Navigator |
+| `[AltNavigation1]`, `[AltNavigation2]` | Alternate button bindings for PS Navigation |
+| `[AltNavigationTrigger1]`, `[AltNavigationTrigger2]` | Alternate trigger settings for PS Navigation |
+| `[AltNavigationStick1]`, `[AltNavigationStick2]` | Alternate stick settings for PS Navigation |
 
 ## Section Reference
 
@@ -236,9 +241,9 @@ Supported fields:
 | `SensitivityX`, `SensitivityY`, `SensitivityZ` | Axis input multiplier | `float`, `0.0 - max` |
 | `DeadzoneX`, `DeadzoneY`, `DeadzoneZ` | Ignore input below this threshold | `int`, `0 - max` |
 
-### PS Navigator Binding Sections
-- `[Navigator1]`, `[Navigator2]`
-- `[AltNavigator1]`, `[AltNavigator2]`
+### PS Navigation Binding Sections
+- `[Navigation1]`, `[Navigation2]`
+- `[AltNavigation1]`, `[AltNavigation2]`
 
 Value format for every binding field:
 
@@ -274,9 +279,9 @@ Supported fields:
 | `Y+` | Positive stick Y axis | `prefix:value` |
 | `Y-` | Negative stick Y axis | `prefix:value` |
 
-### PS Navigator Trigger Sections
-- `[NavigatorTrigger1]`, `[NavigatorTrigger2]`
-- `[AltNavigatorTrigger1]`, `[AltNavigatorTrigger2]`
+### PS Navigation Trigger Sections
+- `[NavigationTrigger1]`, `[NavigationTrigger2]`
+- `[AltNavigationTrigger1]`, `[AltNavigationTrigger2]`
 
 | Name | Description | Value |
 | --- | --- | --- |
@@ -284,9 +289,9 @@ Supported fields:
 | `Sensitivity` | Trigger input multiplier | `float`, `0.0 - max` |
 | `Deadzone` | Ignore trigger input below this threshold | `int`, `0 - 255` |
 
-### PS Navigator Stick Sections
-- `[NavigatorStick1]`, `[NavigatorStick2]`
-- `[AltNavigatorStick1]`, `[AltNavigatorStick2]`
+### PS Navigation Stick Sections
+- `[NavigationStick1]`, `[NavigationStick2]`
+- `[AltNavigationStick1]`, `[AltNavigationStick2]`
 
 | Name | Description | Value |
 | --- | --- | --- |
@@ -307,19 +312,26 @@ Supported fields:
 | `LargeBoostLow`, `LargeBoostMid`, `LargeBoostHigh`, `SmallBoostLow`, `SmallBoostMid`, `SmallBoostHigh` | Strength multipliers for each range | `float`, `0.0 - max` |
 | `LargeMinOutput`, `SmallMinOutput` | Minimum motor output once active | `int`, `0 - 255` |
 
-### Repeat Section
-- `[RepeatMs]`
+### Keyboard Section
+- `[Keyboard]`
 
 | Name | Description | Value |
 | --- | --- | --- |
-| `Key` | Repeat delay for keyboard/mouse button actions | `int` milliseconds |
-| `Wheel` | Repeat delay for mouse wheel actions (default: 0 = use Key) | `int` milliseconds |
+| `Key` | Repeat delay for keyboard actions (button and sensor trigger). When a keyboard key is held, it auto-repeats at this interval. Default: 120ms | `int` milliseconds |
 
-### Misc Section
-- `[Misc]`
+### Mouse Section
+- `[Mouse]`
 
 | Name | Description | Value |
 | --- | --- | --- |
-| `Path` | Optional profile path metadata | Text |
-| `Name` | Profile display name | Text |
+| `Key` | Repeat delay for mouse button actions (button and sensor trigger). When a mouse button is held, it auto-repeats at this interval. Default: 120ms | `int` milliseconds |
+| `Wheel` | Repeat delay for mouse wheel actions (default: 50ms if 0) | `int` milliseconds |
+
+### Profile Section
+- `[Profile]`
+
+| Name | Description | Value |
+| --- | --- | --- |
+| `Path` | Executable name for auto-profile switching (e.g. `game.exe`). Full paths also work — only the basename is compared. | Text |
+| `Name` | Profile display name in tray menu | Text |
 | `Comments` | Free-form profile notes | Text |

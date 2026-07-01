@@ -72,9 +72,11 @@
 #define ID_TRAY_PROFILE_FIRST     1100
 #define ID_TRAY_PROFILE_LAST      1227
 
-#define LOOP_SLEEP_MS             10
+
+
 #define WAIT_SLEEP_MS             250
 #define SERVICE_POLL_MS           250
+#define DEVICE_LIVENESS_POLL_MS   3000
 #define MAX_PSMOVE_POLLS_PER_TICK 32
 #define MOVE_COUNT                2
 #define MOVE_SERIAL_LENGTH        18

@@ -1,7 +1,7 @@
 #ifndef NAVIGATOR_INPUT_H
 #define NAVIGATOR_INPUT_H
 
-#include "psnavigator.h"
+#include "nav_device.h"
 #include "input_actions.h"
 
 typedef enum NavigatorButtonInput {
@@ -52,6 +52,7 @@ typedef struct NavigatorProfile {
     AxisSettings stickConfig[2];
     AxisSettings altStickConfig[2];
     int repeatMs;
+    int mouseRepeatMs;
     int wheelRepeatMs;
     bool altModeActive;
     float mouseResidualX;
@@ -59,6 +60,6 @@ typedef struct NavigatorProfile {
 } NavigatorProfile;
 
 void navigatorProfileResetRuntimeState(NavigatorProfile *profile);
-void processNavigatorInputDevice(PSNavigator *nav, NavigatorProfile *profile, XUSB_REPORT *report);
+void processNavigatorInputDevice(NavDevice *nav, NavigatorProfile *profile, XUSB_REPORT *report, DWORD now);
 
 #endif

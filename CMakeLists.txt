@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(motionpad C RC)
+project(motionpad C)
 
 if(NOT WIN32)
     message(FATAL_ERROR "motionpad is a Windows-only application.")
@@ -8,10 +8,14 @@ endif()
 
 if(MSVC)
     set(MOTIONPAD_COMPILER_KIND "msvc")
+    enable_language(RC)
 elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
     set(MOTIONPAD_COMPILER_KIND "gcc")
+    enable_language(RC)
 elseif(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
     set(MOTIONPAD_COMPILER_KIND "tcc")
+    set(CMAKE_RC_COMPILER windres)
+    enable_language(RC)
 else()
     message(
         FATAL_ERROR
@@ -31,6 +35,7 @@ set(MOTIONPAD_SOURCES
     src/logger.c
     src/main.c
     src/move_input.c
+    src/nav_device.c
     src/navigator_input.c
     src/telemetry.c
     src/profile.c
@@ -98,7 +103,7 @@ if(MOTIONPAD_COMPILER_KIND STREQUAL "gcc")
         motionpad_navinput_import
         motionpad_vigem_import
     )
-    list(APPEND MOTIONPAD_LINK_LIBRARIES psmoveapi ViGEmClient navinput user32 shell32 ole32 uuid)
+    list(APPEND MOTIONPAD_LINK_LIBRARIES psmoveapi ViGEmClient navinput user32 shell32 ole32 uuid SDL3)
     list(APPEND MOTIONPAD_COMPILE_OPTIONS -O2 -Wall -Wextra)
 elseif(MOTIONPAD_COMPILER_KIND STREQUAL "msvc")
     find_program(MSVC_LIB_EXECUTABLE NAMES lib)
@@ -108,13 +113,15 @@ elseif(MOTIONPAD_COMPILER_KIND STREQUAL "msvc")
     motionpad_add_msvc_import_library(motionpad_psmoveapi_import lib/libpsmoveapi.def psmoveapi.lib)
     motionpad_add_msvc_import_library(motionpad_navinput_import lib/libnavinput.def navinput.lib)
     motionpad_add_msvc_import_library(motionpad_vigem_import lib/ViGEmClient.def ViGEmClient.lib)
+    motionpad_add_msvc_import_library(motionpad_sdl3_import lib/SDL3/SDL3.def SDL3.lib)
 
     list(APPEND MOTIONPAD_IMPORT_TARGETS
         motionpad_psmoveapi_import
         motionpad_navinput_import
         motionpad_vigem_import
+        motionpad_sdl3_import
     )
-    list(APPEND MOTIONPAD_LINK_LIBRARIES psmoveapi ViGEmClient navinput user32 shell32 ole32 uuid)
+    list(APPEND MOTIONPAD_LINK_LIBRARIES psmoveapi ViGEmClient navinput user32 shell32 ole32 uuid SDL3)
     list(APPEND MOTIONPAD_COMPILE_DEFINITIONS _CRT_SECURE_NO_WARNINGS)
     list(APPEND MOTIONPAD_COMPILE_OPTIONS
         /W4
@@ -131,6 +138,9 @@ elseif(MOTIONPAD_COMPILER_KIND STREQUAL "tcc")
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/ViGEmClient.def"
         -lnavinput
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/libnavinput.def"
+        "-L${CMAKE_CURRENT_SOURCE_DIR}/lib/SDL3"
+        -lSDL3
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/SDL3/SDL3.def"
         -luser32
         -lshell32
         -Wl,-subsystem=windows
@@ -148,6 +158,8 @@ target_include_directories(
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/psmoveapi"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/vigem"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/SDL3"
 )
 
 target_compile_definitions(motionpad PRIVATE ${MOTIONPAD_COMPILE_DEFINITIONS})
@@ -158,6 +170,9 @@ if(MOTIONPAD_IMPORT_TARGETS)
     target_link_directories(motionpad PRIVATE "${GENERATED_IMPORT_LIB_DIR}")
 elseif(NOT MOTIONPAD_COMPILER_KIND STREQUAL "tcc")
     target_link_directories(motionpad PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+endif()
+if(NOT MOTIONPAD_COMPILER_KIND STREQUAL "tcc")
+    target_link_directories(motionpad PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/SDL3")
 endif()
 
 target_link_libraries(motionpad PRIVATE ${MOTIONPAD_LINK_LIBRARIES} ${MOTIONPAD_LINK_ITEMS})
@@ -190,7 +205,8 @@ set(MOTIONPAD_RUNTIME_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/libnavinput.dll"
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/libpsmoveapi.dll"
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/settings.ini"
-	"${CMAKE_CURRENT_SOURCE_DIR}/runtime/psmove.exe"
+    "${CMAKE_CURRENT_SOURCE_DIR}/runtime/psmove.exe"
+    "${CMAKE_CURRENT_SOURCE_DIR}/runtime/SDL3.dll"
 )
 
 foreach(runtime_file IN LISTS MOTIONPAD_RUNTIME_FILES)
@@ -214,10 +230,34 @@ add_custom_command(
     COMMAND "${CMAKE_COMMAND}" -E make_directory
         "$<TARGET_FILE_DIR:motionpad>/profiles"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/default.ini"
-        "$<TARGET_FILE_DIR:motionpad>/profiles/default.ini"
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/hybrid mode.ini"
+        "$<TARGET_FILE_DIR:motionpad>/profiles/hybrid mode.ini"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/default - xinput only.ini"
-        "$<TARGET_FILE_DIR:motionpad>/profiles/default - xinput only.ini"
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/controller mode.ini"
+        "$<TARGET_FILE_DIR:motionpad>/profiles/controller mode.ini"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/arrow mode.ini"
+        "$<TARGET_FILE_DIR:motionpad>/profiles/arrow mode.ini"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/wasd mode.ini"
+        "$<TARGET_FILE_DIR:motionpad>/profiles/wasd mode.ini"
     VERBATIM
 )
+
+set(MOTIONPAD_DOC_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt"
+    "${CMAKE_CURRENT_SOURCE_DIR}/PROFILE_REFERENCE.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/THIRD-PARTY-NOTICES.txt"
+)
+
+foreach(doc_file IN LISTS MOTIONPAD_DOC_FILES)
+    add_custom_command(
+        TARGET motionpad
+        POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${doc_file}"
+            "$<TARGET_FILE_DIR:motionpad>"
+        VERBATIM
+    )
+endforeach()

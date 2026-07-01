@@ -70,16 +70,23 @@ AxisSettings profileReadAxisSettings(const wchar_t *config_path, const wchar_t *
     return axis;
 }
 
-int profileReadGlobalRepeatMs(const wchar_t *config_path)
+int profileReadKeyboardKey(const wchar_t *config_path)
 {
-    int repeat_ms = GetPrivateProfileIntW(L"RepeatMs", L"Key", 120, config_path);
+    int repeat_ms = GetPrivateProfileIntW(L"Keyboard", L"Key", 120, config_path);
     if (repeat_ms < 1) repeat_ms = 1;
     return repeat_ms;
 }
 
-int profileReadWheelRepeatMs(const wchar_t *config_path)
+int profileReadMouseKey(const wchar_t *config_path)
 {
-    int repeat_ms = GetPrivateProfileIntW(L"RepeatMs", L"Wheel", 0, config_path);
+    int repeat_ms = GetPrivateProfileIntW(L"Mouse", L"Key", 120, config_path);
+    if (repeat_ms < 1) repeat_ms = 1;
+    return repeat_ms;
+}
+
+int profileReadMouseWheelMs(const wchar_t *config_path)
+{
+    int repeat_ms = GetPrivateProfileIntW(L"Mouse", L"Wheel", 0, config_path);
     if (repeat_ms < 0) repeat_ms = 0;
     return repeat_ms;
 }
@@ -96,15 +103,15 @@ static void makeAltMoveSectionName(wchar_t *out_name, size_t out_count, int move
     out_name[out_count - 1] = L'\0';
 }
 
-static void makeNavigatorSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
+static void makeNavigationSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
 {
-    _snwprintf(out_name, out_count, L"Navigator%d", navigator_index + 1);
+    _snwprintf(out_name, out_count, L"Navigation%d", navigator_index + 1);
     out_name[out_count - 1] = L'\0';
 }
 
-static void makeNavigatorStickSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
+static void makeNavigationStickSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
 {
-    _snwprintf(out_name, out_count, L"NavigatorStick%d", navigator_index + 1);
+    _snwprintf(out_name, out_count, L"NavigationStick%d", navigator_index + 1);
     out_name[out_count - 1] = L'\0';
 }
 
@@ -120,27 +127,27 @@ static void makeAltMoveTriggerSectionName(wchar_t *out_name, size_t out_count, i
     out_name[out_count - 1] = L'\0';
 }
 
-static void makeNavigatorTriggerSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
+static void makeNavigationTriggerSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
 {
-    _snwprintf(out_name, out_count, L"NavigatorTrigger%d", navigator_index + 1);
+    _snwprintf(out_name, out_count, L"NavigationTrigger%d", navigator_index + 1);
     out_name[out_count - 1] = L'\0';
 }
 
-static void makeAltNavigatorTriggerSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
+static void makeAltNavigationTriggerSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
 {
-    _snwprintf(out_name, out_count, L"AltNavigatorTrigger%d", navigator_index + 1);
+    _snwprintf(out_name, out_count, L"AltNavigationTrigger%d", navigator_index + 1);
     out_name[out_count - 1] = L'\0';
 }
 
-static void makeAltNavigatorSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
+static void makeAltNavigationSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
 {
-    _snwprintf(out_name, out_count, L"AltNavigator%d", navigator_index + 1);
+    _snwprintf(out_name, out_count, L"AltNavigation%d", navigator_index + 1);
     out_name[out_count - 1] = L'\0';
 }
 
-static void makeAltNavigatorStickSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
+static void makeAltNavigationStickSectionName(wchar_t *out_name, size_t out_count, int navigator_index)
 {
-    _snwprintf(out_name, out_count, L"AltNavigatorStick%d", navigator_index + 1);
+    _snwprintf(out_name, out_count, L"AltNavigationStick%d", navigator_index + 1);
     out_name[out_count - 1] = L'\0';
 }
 
@@ -200,17 +207,17 @@ static AxisSettings profileReadAltMoveTriggerConfig(const wchar_t *config_path, 
     return profileReadAxisSettings(config_path, section_name, L"", 0, L"1.0", 0);
 }
 
-static AxisSettings profileReadNavigatorTriggerConfig(const wchar_t *config_path, int navigator_index)
+static AxisSettings profileReadNavigationTriggerConfig(const wchar_t *config_path, int navigator_index)
 {
     wchar_t section_name[64];
-    makeNavigatorTriggerSectionName(section_name, 64, navigator_index);
+    makeNavigationTriggerSectionName(section_name, 64, navigator_index);
     return profileReadAxisSettings(config_path, section_name, L"", 0, L"1.0", 0);
 }
 
-static AxisSettings profileReadAltNavigatorTriggerConfig(const wchar_t *config_path, int navigator_index)
+static AxisSettings profileReadAltNavigationTriggerConfig(const wchar_t *config_path, int navigator_index)
 {
     wchar_t section_name[64];
-    makeAltNavigatorTriggerSectionName(section_name, 64, navigator_index);
+    makeAltNavigationTriggerSectionName(section_name, 64, navigator_index);
     return profileReadAxisSettings(config_path, section_name, L"", 0, L"1.0", 0);
 }
 
@@ -488,12 +495,28 @@ static void profileLoadMoveProfile(MoveProfile *profile, int move_index, const w
     wchar_t section_buffer[INI_SECTION_SIZE];
     wchar_t *entry_ptr;
 
+    int i;
+    int saved_center[SensorAxisIndex_Count];
+    bool saved_captured[SensorAxisIndex_Count];
     if (!profile || move_index < 0 || move_index >= MOVE_COUNT) return;
+
+    for (i = 0; i < SensorAxisIndex_Count; ++i) {
+        saved_center[i] = profile->accelCenter[i];
+        saved_captured[i] = profile->accelCenterCaptured[i];
+    }
 
     moveProfileResetRuntimeState(profile);
     ZeroMemory(profile, sizeof(*profile));
-    profile->repeatMs = profileReadGlobalRepeatMs(config_path);
-    profile->wheelRepeatMs = profileReadWheelRepeatMs(config_path);
+
+    for (i = 0; i < SensorAxisIndex_Count; ++i) {
+        if (saved_captured[i]) {
+            profile->accelCenter[i] = saved_center[i];
+            profile->accelCenterCaptured[i] = true;
+        }
+    }
+    profile->repeatMs = profileReadKeyboardKey(config_path);
+    profile->mouseRepeatMs = profileReadMouseKey(config_path);
+    profile->wheelRepeatMs = profileReadMouseWheelMs(config_path);
     profile->triggerConfig = profileReadMoveTriggerConfig(config_path, move_index);
     profile->altTriggerConfig = profileReadAltMoveTriggerConfig(config_path, move_index);
     profileReadGyroConfig(config_path, move_index, profile->gyroConfig);
@@ -599,11 +622,11 @@ static bool addNavigatorSensorAction(NavigatorSensorBinding *binding, const Sens
     return true;
 }
 
-static void profileLoadNavigatorStickConfig(NavigatorProfile *profile, int navigator_index, const wchar_t *config_path)
+static void profileLoadNavigationStickConfig(NavigatorProfile *profile, int navigator_index, const wchar_t *config_path)
 {
     wchar_t section_name[64];
 
-    makeNavigatorStickSectionName(section_name, 64, navigator_index);
+    makeNavigationStickSectionName(section_name, 64, navigator_index);
     profile->stickConfig[0].invert = GetPrivateProfileIntW(section_name, L"InvertX", 0, config_path) ? 1 : 0;
     profile->stickConfig[1].invert = GetPrivateProfileIntW(section_name, L"InvertY", 0, config_path) ? 1 : 0;
     profile->stickConfig[0].sensitivity = profileReadFloat(config_path, section_name, L"SensitivityX", L"1.0");
@@ -612,11 +635,11 @@ static void profileLoadNavigatorStickConfig(NavigatorProfile *profile, int navig
     profile->stickConfig[1].deadzone = GetPrivateProfileIntW(section_name, L"DeadzoneY", 12, config_path);
 }
 
-static void profileLoadAltNavigatorStickConfig(NavigatorProfile *profile, int navigator_index, const wchar_t *config_path)
+static void profileLoadAltNavigationStickConfig(NavigatorProfile *profile, int navigator_index, const wchar_t *config_path)
 {
     wchar_t section_name[64];
 
-    makeAltNavigatorStickSectionName(section_name, 64, navigator_index);
+    makeAltNavigationStickSectionName(section_name, 64, navigator_index);
     profile->altStickConfig[0].invert = GetPrivateProfileIntW(section_name, L"InvertX", 0, config_path) ? 1 : 0;
     profile->altStickConfig[1].invert = GetPrivateProfileIntW(section_name, L"InvertY", 0, config_path) ? 1 : 0;
     profile->altStickConfig[0].sensitivity = profileReadFloat(config_path, section_name, L"SensitivityX", L"1.0");
@@ -690,14 +713,15 @@ static void profileLoadNavigatorProfile(NavigatorProfile *profile, int navigator
 
     navigatorProfileResetRuntimeState(profile);
     ZeroMemory(profile, sizeof(*profile));
-    profile->repeatMs = profileReadGlobalRepeatMs(config_path);
-    profile->wheelRepeatMs = profileReadWheelRepeatMs(config_path);
-    profile->triggerConfig = profileReadNavigatorTriggerConfig(config_path, navigator_index);
-    profile->altTriggerConfig = profileReadAltNavigatorTriggerConfig(config_path, navigator_index);
-    profileLoadNavigatorStickConfig(profile, navigator_index, config_path);
-    profileLoadAltNavigatorStickConfig(profile, navigator_index, config_path);
+    profile->repeatMs = profileReadKeyboardKey(config_path);
+    profile->mouseRepeatMs = profileReadMouseKey(config_path);
+    profile->wheelRepeatMs = profileReadMouseWheelMs(config_path);
+    profile->triggerConfig = profileReadNavigationTriggerConfig(config_path, navigator_index);
+    profile->altTriggerConfig = profileReadAltNavigationTriggerConfig(config_path, navigator_index);
+    profileLoadNavigationStickConfig(profile, navigator_index, config_path);
+    profileLoadAltNavigationStickConfig(profile, navigator_index, config_path);
 
-    makeNavigatorSectionName(section_name, 64, navigator_index);
+    makeNavigationSectionName(section_name, 64, navigator_index);
     ZeroMemory(section_buffer, sizeof(section_buffer));
     GetPrivateProfileSectionW(section_name, section_buffer, INI_SECTION_SIZE, config_path);
 
@@ -720,7 +744,7 @@ static void profileLoadNavigatorProfile(NavigatorProfile *profile, int navigator
         entry_ptr += wcslen(entry_ptr) + 1;
     }
 
-    makeAltNavigatorSectionName(section_name, 64, navigator_index);
+    makeAltNavigationSectionName(section_name, 64, navigator_index);
     ZeroMemory(section_buffer, sizeof(section_buffer));
     GetPrivateProfileSectionW(section_name, section_buffer, INI_SECTION_SIZE, config_path);
 
@@ -960,8 +984,8 @@ void profileSaveSettings(const AppContext *app)
     );
     WritePrivateProfileStringW(
         L"General",
-        L"EnableEmulation",
-        app->emulation_enabled ? L"1" : L"0",
+        L"EnableOutput",
+        app->output_enabled ? L"1" : L"0",
         app->settings_path
     );
     WritePrivateProfileStringW(
@@ -970,6 +994,29 @@ void profileSaveSettings(const AppContext *app)
         app->telemetry_enabled ? L"1" : L"0",
         app->settings_path
     );
+    WritePrivateProfileStringW(
+        L"General",
+        L"UseBthPS3",
+        app->use_bthps3 ? L"1" : L"0",
+        app->settings_path
+    );
+    WritePrivateProfileStringW(
+        L"General",
+        L"UseAutoProfile",
+        app->use_auto_profile ? L"1" : L"0",
+        app->settings_path
+    );
+    {
+        wchar_t buf[16];
+        _snwprintf(buf, 16, L"%d", app->poll_rate_ms);
+        buf[15] = L'\0';
+        WritePrivateProfileStringW(
+            L"General",
+            L"PollRateMs",
+            buf,
+            app->settings_path
+        );
+    }
 }
 
 void profileLoadSettings(AppContext *app)
@@ -982,7 +1029,7 @@ void profileLoadSettings(AppContext *app)
 
     profileBuildPath(app->settings_path, MAX_PATH, L"settings.ini");
     profileBuildPath(app->config_path, MAX_PATH, L"profile.ini");
-    app->emulation_enabled = true;
+    app->output_enabled = true;
 
     wcsncpy(module_dir, app->settings_path, MAX_PATH - 1);
     module_dir[MAX_PATH - 1] = L'\0';
@@ -998,9 +1045,56 @@ void profileLoadSettings(AppContext *app)
     trimWideStringInPlace(profile_path_text);
     profileResolvePath(module_dir, profile_path_text, L"profile.ini", app->config_path, MAX_PATH);
 
-    app->emulation_enabled = GetPrivateProfileIntW(L"General", L"EnableEmulation", 1, app->settings_path) ? true : false;
+    app->output_enabled = GetPrivateProfileIntW(L"General", L"EnableOutput", 1, app->settings_path) ? true : false;
     app->telemetry_enabled = GetPrivateProfileIntW(L"General", L"EnableTelemetry", 0, app->settings_path) ? true : false;
+    app->use_bthps3 = GetPrivateProfileIntW(L"General", L"UseBthPS3", 0, app->settings_path) ? true : false;
+    app->use_auto_profile = GetPrivateProfileIntW(L"General", L"UseAutoProfile", 0, app->settings_path) ? true : false;
+    app->poll_rate_ms = (int)GetPrivateProfileIntW(L"General", L"PollRateMs", 4, app->settings_path);
+    if (app->poll_rate_ms < 1) app->poll_rate_ms = 1;
+    if (app->poll_rate_ms > 100) app->poll_rate_ms = 100;
     profileSaveSettings(app);
+}
+
+void profileReloadSettings(AppContext *app)
+{
+    wchar_t profile_path_text[MAX_PATH];
+    wchar_t module_dir[MAX_PATH];
+    wchar_t *last_slash;
+    wchar_t new_config_path[MAX_PATH];
+    bool path_changed;
+
+    if (!app) return;
+
+    app->output_enabled = GetPrivateProfileIntW(L"General", L"EnableOutput", 1, app->settings_path) ? true : false;
+    app->telemetry_enabled = GetPrivateProfileIntW(L"General", L"EnableTelemetry", 0, app->settings_path) ? true : false;
+    app->use_auto_profile = GetPrivateProfileIntW(L"General", L"UseAutoProfile", 0, app->settings_path) ? true : false;
+    app->poll_rate_ms = (int)GetPrivateProfileIntW(L"General", L"PollRateMs", 4, app->settings_path);
+    if (app->poll_rate_ms < 1) app->poll_rate_ms = 1;
+    if (app->poll_rate_ms > 100) app->poll_rate_ms = 100;
+
+    wcsncpy(module_dir, app->settings_path, MAX_PATH - 1);
+    module_dir[MAX_PATH - 1] = L'\0';
+    last_slash = wcsrchr(module_dir, L'\\');
+    if (last_slash) {
+        *last_slash = L'\0';
+    } else {
+        module_dir[0] = L'\0';
+    }
+
+    ZeroMemory(profile_path_text, sizeof(profile_path_text));
+    GetPrivateProfileStringW(L"General", L"Path", L"profile.ini", profile_path_text, MAX_PATH, app->settings_path);
+    trimWideStringInPlace(profile_path_text);
+    profileResolvePath(module_dir, profile_path_text, L"profile.ini", new_config_path, MAX_PATH);
+
+    path_changed = _wcsicmp(app->config_path, new_config_path) != 0;
+    if (path_changed) {
+        wcsncpy(app->config_path, new_config_path, MAX_PATH - 1);
+        app->config_path[MAX_PATH - 1] = L'\0';
+        profileSaveSettings(app);
+    }
+
+    logWrite("settings", "reloaded: Emulation=%d Telemetry=%d PollRateMs=%d PathChanged=%d",
+        app->output_enabled, app->telemetry_enabled, app->poll_rate_ms, path_changed);
 }
 
 BOOL profileIsTelemetryEnabled(const AppContext *app)
