@@ -61,7 +61,10 @@ Main loop (every ~9ms, PollRateMs in settings.ini):
 ## Important Patterns
 
 ### `isDown` tracking for Xbox buttons
-Digital button actions (`updateDigitalButtonAction`) do NOT track `isDown` — they always set the bit and rely on `appContextZeroReport` to clear it next frame. Sensor-triggered button actions (`applySensorButtonLikeAction`) DO track `isDown` to manage press/release state and clear their bit on release. This prevents interference between devices sharing the same binding.
+Digital button actions (`updateDigitalButtonAction`) do NOT track `isDown` for Xbox buttons — they always set the bit and rely on `appContextZeroReport` to clear it next frame. Sensor-triggered button actions (`applySensorButtonLikeAction`) DO track `isDown` to manage press/release state and clear their bit on release. This prevents interference between devices sharing the same binding.
+
+### Auto-repeat for digital button actions
+`updateDigitalButtonAction` supports auto-repeat for `ActionKind_Keyboard` and `ActionKind_MouseButton`. When held, the key/mouse button repeats at the interval set by `[Keyboard] Key=` / `[Mouse] Key=` in the profile INI. `isDown` and `lastRepeatTick` are tracked per-action to manage press, repeat, and release. Mouse wheel actions also repeat using `[Mouse] Wheel=`.
 
 ### Report sharing
 A single `XUSB_REPORT` is shared across all connected devices. Processing order is Nav→Move so Move accelerometer can overwrite Navigator on shared axes. Bits not explicitly cleared will persist until `appContextZeroReport` at the start of the next frame.
