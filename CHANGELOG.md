@@ -1,8 +1,6 @@
 # Changelog
 
-All notable changes since `MotionPad-0.1` (the old `PSMove4PC` codebase).
-
-## [Unreleased]
+## [0.1.1]
 
 ### Added
 
