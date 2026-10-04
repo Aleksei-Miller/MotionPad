@@ -69,6 +69,7 @@
 #define ID_TRAY_EDIT_PROFILE      1003
 #define ID_TRAY_EXIT              1002
 #define ID_TRAY_PAIR_PSMOVE       1004
+#define ID_TRAY_RECONNECT_DEVICES 1005
 #define ID_TRAY_PROFILE_FIRST     1100
 #define ID_TRAY_PROFILE_LAST      1227
 

@@ -343,6 +343,41 @@ void deviceConnectNavigatorsIfNeeded(AppContext *app, DWORD now)
     }
 }
 
+void deviceRestartDevices(AppContext *app, DWORD now)
+{
+    int move_index;
+    int navigator_index;
+
+    if (!app) return;
+
+    for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
+        deviceSetMoveDisconnected(app, move_index);
+    }
+
+    for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT; ++navigator_index) {
+        if (app->navigators[navigator_index]) {
+            navDeviceDestroy(app->navigators[navigator_index]);
+            app->navigators[navigator_index] = NULL;
+        }
+        app->navigator_paths[navigator_index][0] = '\0';
+        app->navigator_cooldown_path[navigator_index][0] = '\0';
+        app->navigator_cooldown_tick[navigator_index] = 0;
+        navigatorProfileResetRuntimeState(&app->navigator_profiles[navigator_index]);
+    }
+
+    app->navigator_reconnect_tick = 0;
+    appContextZeroReport(app);
+    vigemSubmitReport(app, &app->report);
+
+    for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
+        deviceConnectAvailableMoves(app);
+    }
+    deviceConnectNavigatorsIfNeeded(app, now);
+
+    app->move_count_cache = psmove_count_connected();
+    logWrite("device", "restart: reinitialized PS Move and PS Navigation devices");
+}
+
 void deviceCheckAlive(AppContext *app, DWORD now)
 {
     int index;

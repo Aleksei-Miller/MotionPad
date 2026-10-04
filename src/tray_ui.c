@@ -7,6 +7,7 @@
 #include "tray_ui.h"
 #include "rumble_manager.h"
 #include "vigem_manager.h"
+#include "device_manager.h"
 #include "logger.h"
 #include "nav_device.h"
 #include "profile.h"
@@ -743,7 +744,7 @@ static LRESULT CALLBACK trayWindowProc(HWND window_handle, UINT message, WPARAM 
                 HMENU menu_handle = CreatePopupMenu();
                 if (menu_handle && g_app) {
                     POINT cursor_pos;
-                    UINT toggle_flags = MF_STRING | (g_app->output_enabled ? MF_UNCHECKED : MF_CHECKED);
+                    const wchar_t *emulation_label = g_app->output_enabled ? L"Disable Emulation" : L"Enable Emulation";
                     wchar_t battery_text[64];
                     buildBatteryMenuText(g_app, battery_text, 64);
                     AppendMenuW(menu_handle, MF_STRING | MF_GRAYED, 0, battery_text);
@@ -751,11 +752,13 @@ static LRESULT CALLBACK trayWindowProc(HWND window_handle, UINT message, WPARAM 
 					AppendMenuW(menu_handle, MF_STRING, ID_TRAY_EDIT_PROFILE, L"Edit Profile");
                     appendProfilesMenu(menu_handle, g_app);
                     AppendMenuW(menu_handle, MF_SEPARATOR, 0, NULL);
-                    AppendMenuW(menu_handle, toggle_flags, ID_TRAY_TOGGLE_EMULATION, L"Disable");
                     HMENU service_menu = CreatePopupMenu();
                     if (service_menu) {
                         AppendMenuW(service_menu, MF_STRING, ID_TRAY_CALIBRATE_PSMOVE, L"Calibrate PS Move");
                         AppendMenuW(service_menu, MF_STRING, ID_TRAY_PAIR_PSMOVE, L"Pair PS Move");
+                        AppendMenuW(service_menu, MF_SEPARATOR, 0, NULL);
+                        AppendMenuW(service_menu, MF_STRING, ID_TRAY_RECONNECT_DEVICES, L"Reconnect Devices");
+                        AppendMenuW(service_menu, MF_STRING, ID_TRAY_TOGGLE_EMULATION, emulation_label);
                         AppendMenuW(menu_handle, MF_POPUP, (UINT_PTR)service_menu, L"Service");
                      }
                     AppendMenuW(menu_handle, MF_SEPARATOR, 0, NULL);
@@ -783,6 +786,10 @@ static LRESULT CALLBACK trayWindowProc(HWND window_handle, UINT message, WPARAM 
             }
             if (LOWORD(w_param) == ID_TRAY_CALIBRATE_PSMOVE) {
                 trayLaunchPSMoveCalibration();
+                return 0;
+            }
+            if (LOWORD(w_param) == ID_TRAY_RECONNECT_DEVICES) {
+                deviceRestartDevices(g_app, GetTickCount());
                 return 0;
             }
             if (LOWORD(w_param) == ID_TRAY_EDIT_PROFILE) {
