@@ -46,15 +46,26 @@ static void fallbackToDefaultProfileIfMissing(AppContext *app)
     }
 }
 
-static void updateServiceDevices(AppContext *app, DWORD *last_service_tick, DWORD now)
+static void updateServiceDevices(AppContext *app, DWORD *last_service_tick, DWORD *last_full_poll_tick, DWORD now)
 {
-    if ((DWORD)(now - *last_service_tick) >= SERVICE_POLL_MS) {
-        app->move_count_cache = psmove_count_connected();
-        deviceRemoveDisconnectedMovesBestEffort(app);
-        deviceConnectAvailableMoves(app);
+    bool service_dirty = InterlockedExchange(&app->service_dirty, 0) != 0;
+    bool nav_due = service_dirty || (DWORD)(now - *last_service_tick) >= SERVICE_POLL_MS;
+    bool full_due = service_dirty || *last_full_poll_tick == 0 ||
+        (DWORD)(now - *last_full_poll_tick) >= SERVICE_FALLBACK_POLL_MS;
+
+    if (nav_due) {
         deviceConnectNavigatorsIfNeeded(app, now);
         *last_service_tick = now;
     }
+
+    if (!full_due) {
+        return;
+    }
+    *last_full_poll_tick = now;
+
+    app->move_count_cache = psmove_count_connected();
+    deviceRemoveDisconnectedMovesBestEffort(app);
+    deviceConnectAvailableMoves(app);
 }
 
 static void updateTrayTooltipIfNeeded(AppContext *app, DWORD *last_tray_tick, DWORD now)
@@ -121,6 +132,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 
     DWORD last_tray_update_tick = 0;
     DWORD last_service_poll_tick = 0;
+    DWORD last_service_full_tick = 0;
     DWORD last_liveness_tick = 0;
     (void)instance;
     (void)prev_instance;
@@ -193,7 +205,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
             }
         }
 
-        updateServiceDevices(&app, &last_service_poll_tick, now);
+        updateServiceDevices(&app, &last_service_poll_tick, &last_service_full_tick, now);
         updateTrayTooltipIfNeeded(&app, &last_tray_update_tick, now);
 
         if ((DWORD)(now - last_liveness_tick) >= DEVICE_LIVENESS_POLL_MS) {

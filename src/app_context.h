@@ -46,6 +46,7 @@ typedef struct AppContext {
     bool vigem_notification_registered;
 
     volatile LONG running;
+    volatile LONG service_dirty;
     bool output_enabled;
     bool tray_added;
 

@@ -77,6 +77,7 @@
 
 #define WAIT_SLEEP_MS             250
 #define SERVICE_POLL_MS           250
+#define SERVICE_FALLBACK_POLL_MS  2000
 #define DEVICE_LIVENESS_POLL_MS   3000
 #define MAX_PSMOVE_POLLS_PER_TICK 32
 #define MOVE_COUNT                2

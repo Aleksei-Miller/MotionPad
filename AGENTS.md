@@ -48,14 +48,14 @@ app/
 Main loop (every ~9ms, PollRateMs in settings.ini):
   1. trayApplyPendingProfileSelection — loads queued profile switch
   2. trayCheckAutoProfile — detects foreground window, auto-switches profile if [Profile] Path= matches
-  3. updateServiceDevices (every 3s) — connects new Moves/Navigators, removes OS-disconnected
-  3. updateTrayTooltipIfNeeded — reads *cached* battery, no psmove_poll
-  4. deviceCheckAlive (every 3s) — single psmove_poll per Move, navDevicePoll per Nav
-  5. appContextZeroReport — zeros XUSB_REPORT for new frame
-  6. processNavigatorInputDevice — poll Nav, apply bindings → XUSB_REPORT
-  7. processMoveInputDevice — while(psmove_poll), apply button + sensor bindings → XUSB_REPORT
-  8. maybeSendTelemetry — reads cached state, no poll drain
-  9. vigemSubmitReport — sends XUSB_REPORT to ViGEmBus (virtual Xbox 360 pad)
+  3. updateServiceDevices — nav scan every SERVICE_POLL_MS (250 ms), full Move enumeration/connect on service_dirty or every SERVICE_FALLBACK_POLL_MS (2000 ms)
+  4. updateTrayTooltipIfNeeded — reads *cached* battery, no psmove_poll
+  5. deviceCheckAlive (every 3s) — single psmove_poll per Move, navDevicePoll per Nav
+  6. appContextZeroReport — zeros XUSB_REPORT for new frame
+  7. processNavigatorInputDevice — poll Nav, apply bindings → XUSB_REPORT
+  8. processMoveInputDevice — while(psmove_poll), apply button + sensor bindings → XUSB_REPORT
+  9. maybeSendTelemetry — reads cached state, no poll drain
+ 10. vigemSubmitReport — sends XUSB_REPORT to ViGEmBus (virtual Xbox 360 pad)
 ```
 
 ## Important Patterns
@@ -68,6 +68,15 @@ Digital button actions (`updateDigitalButtonAction`) do NOT track `isDown` for X
 
 ### Report sharing
 A single `XUSB_REPORT` is shared across all connected devices. Processing order is Nav→Move so Move accelerometer can overwrite Navigator on shared axes. Bits not explicitly cleared will persist until `appContextZeroReport` at the start of the next frame.
+
+### Device discovery
+`updateServiceDevices` runs every frame but only does work when due:
+- nav pass (`deviceConnectNavigatorsIfNeeded`) — every `SERVICE_POLL_MS` (250 ms), or immediately when `app.service_dirty` is set
+- full Move pass (`psmove_count_connected` → `deviceRemoveDisconnectedMovesBestEffort` → `deviceConnectAvailableMoves`) — every `SERVICE_FALLBACK_POLL_MS` (2000 ms), or immediately when `service_dirty` is set
+
+`service_dirty` is set by `WM_DEVICECHANGE` / `DBT_DEVNODES_CHANGED` in `trayWindowProc`, so a freshly powered-on controller is picked up on the next frame instead of waiting out a poll interval. The 2000 ms fallback is the safety net for transitions Windows does not report.
+
+`psmove_count_connected()` takes **no arguments** — there is no `source_ids` overload (`lib/libpsmoveapi.def`). Passing extra arguments reads caller stack garbage and silently disables any dedupe that depends on them. It is only called to refresh `app->move_count_cache` (`updateServiceDevices` full pass, `deviceRestartDevices`); every other site reads the cache.
 
 ### Poll draining
 `psmove_poll()` drains one packet per call. `processMoveInputDevice` uses `while (psmove_poll)` to drain all available packets, ensuring the getters return the latest state. `deviceCheckAlive` and `maybeSendTelemetry` do NOT drain — they read cached state. Battery is cached after `processMoveInputDevice` so tray doesn't need to poll.

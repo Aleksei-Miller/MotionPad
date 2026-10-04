@@ -20,6 +20,10 @@ static QFPIWFunc qfpiw = NULL;
 
 static AppContext *g_app = NULL;
 
+#ifndef DBT_DEVNODES_CHANGED
+#define DBT_DEVNODES_CHANGED 0x0007
+#endif
+
 #define MAX_TRAY_PROFILES (ID_TRAY_PROFILE_LAST - ID_TRAY_PROFILE_FIRST + 1)
 
 typedef struct TrayProfileEntry {
@@ -806,6 +810,12 @@ static LRESULT CALLBACK trayWindowProc(HWND window_handle, UINT message, WPARAM 
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
+        case WM_DEVICECHANGE:
+            if (w_param == DBT_DEVNODES_CHANGED && g_app) {
+                InterlockedExchange(&g_app->service_dirty, 1);
+                return TRUE;
+            }
+            break;
     }
     return DefWindowProcW(window_handle, message, w_param, l_param);
 }
