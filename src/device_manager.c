@@ -108,7 +108,6 @@ void deviceSetMoveDisconnected(AppContext *app, int move_index)
     }
 
     app->move_connected[move_index] = false;
-    app->move_source_id[move_index] = -1;
     app->move_serials[move_index][0] = '\0';
     moveProfileResetRuntimeState(&app->move_profiles[move_index]);
     moveProfileResetMouseState(&app->move_profiles[move_index]);
@@ -127,7 +126,7 @@ void deviceRemoveDisconnectedMovesBestEffort(AppContext *app)
 
     if (!app) return;
 
-    count = psmove_count_connected();
+    count = app->move_count_cache;
 
     for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
         if (app->move_connected[move_index]) ++connected_slots;
@@ -148,31 +147,27 @@ void deviceConnectAvailableMoves(AppContext *app)
 {
     int count;
     int index;
-    int source_ids[MOVE_COUNT * 2];
+    int connected_slots = 0;
+    int move_index;
 
     int newly_connected = 0;
 
     if (!app) return;
 
-    count = psmove_count_connected(source_ids, MOVE_COUNT * 2);
-    if (count <= 0) return;
+    for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
+        if (app->move_connected[move_index]) ++connected_slots;
+    }
+
+    count = app->move_count_cache;
+    if (count <= connected_slots) return;
 
     for (index = 0; index < count && newly_connected < 1; ++index) {
         PSMove *move = NULL;
         char *serial = NULL;
         int target_slot = -1;
-        int sid = source_ids[index];
         int s;
 
         if (app->move_connected[0] && app->move_connected[1]) return;
-
-        for (s = 0; s < MOVE_COUNT; ++s) {
-            if (app->move_connected[s] && app->move_source_id[s] == sid) {
-                sid = -1;
-                break;
-            }
-        }
-        if (sid < 0) continue;
 
         if (!app->move_connected[0]) target_slot = 0;
         else if (!app->move_connected[1]) target_slot = 1;
@@ -180,7 +175,10 @@ void deviceConnectAvailableMoves(AppContext *app)
         if (target_slot < 0) break;
 
         move = psmove_connect_by_id(index);
-        if (!move) continue;
+        if (!move) {
+            logWrite("psmove", "connect_by_id(%d) failed while count=%d", index, count);
+            continue;
+        }
 
         serial = psmove_get_serial(move);
         if (isMoveSerialAssigned(app, serial)) {
@@ -218,6 +216,7 @@ void deviceConnectAvailableMoves(AppContext *app)
             }
 
             if (!keep) {
+                logWrite("psmove", "connect_by_id(%d) rejected by sensor test, con_type=%d", index, con_type);
                 if (serial) psmove_free_mem(serial);
                 psmove_disconnect(move);
                 continue;
@@ -227,7 +226,6 @@ void deviceConnectAvailableMoves(AppContext *app)
         app->moves[target_slot] = move;
         app->move_connected[target_slot] = true;
         ++newly_connected;
-        app->move_source_id[target_slot] = source_ids[index];
         if (serial && serial[0]) {
             strncpy(app->move_serials[target_slot], serial, MOVE_SERIAL_LENGTH - 1);
             app->move_serials[target_slot][MOVE_SERIAL_LENGTH - 1] = '\0';
@@ -369,12 +367,13 @@ void deviceRestartDevices(AppContext *app, DWORD now)
     appContextZeroReport(app);
     vigemSubmitReport(app, &app->report);
 
+    app->move_count_cache = psmove_count_connected();
     for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
         deviceConnectAvailableMoves(app);
     }
+
     deviceConnectNavigatorsIfNeeded(app, now);
 
-    app->move_count_cache = psmove_count_connected();
     logWrite("device", "restart: reinitialized PS Move and PS Navigation devices");
 }
 

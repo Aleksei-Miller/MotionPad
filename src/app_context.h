@@ -52,7 +52,6 @@ typedef struct AppContext {
     MoveProfile move_profiles[MOVE_COUNT];
     PSMove *moves[MOVE_COUNT];
     bool move_connected[MOVE_COUNT];
-    int move_source_id[MOVE_COUNT];
     char move_serials[MOVE_COUNT][MOVE_SERIAL_LENGTH];
 
     int move_battery_raw[MOVE_COUNT];

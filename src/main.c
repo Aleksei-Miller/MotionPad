@@ -49,10 +49,10 @@ static void fallbackToDefaultProfileIfMissing(AppContext *app)
 static void updateServiceDevices(AppContext *app, DWORD *last_service_tick, DWORD now)
 {
     if ((DWORD)(now - *last_service_tick) >= SERVICE_POLL_MS) {
+        app->move_count_cache = psmove_count_connected();
         deviceRemoveDisconnectedMovesBestEffort(app);
         deviceConnectAvailableMoves(app);
         deviceConnectNavigatorsIfNeeded(app, now);
-        app->move_count_cache = psmove_count_connected();
         *last_service_tick = now;
     }
 }
