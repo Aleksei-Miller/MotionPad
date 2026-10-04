@@ -3,9 +3,9 @@
 ## Build
 
 ```powershell
-cmake --build app/build/gcc          # MinGW GCC
-cmake --build app/build/tcc          # TCC
-cmake --build app/build/msvc         # MSVC
+cmake --build build/gcc          # MinGW GCC
+cmake --build build/tcc          # TCC
+cmake --build build/msvc         # MSVC
 ```
 
 Run from `app/` directory. The binary appears in `build/<compiler>/bin/motionpad.exe`.

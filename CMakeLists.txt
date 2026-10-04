@@ -103,6 +103,7 @@ if(MOTIONPAD_COMPILER_KIND STREQUAL "gcc")
         motionpad_navinput_import
         motionpad_vigem_import
     )
+    add_compile_definitions(_WIN32_WINNT=0x0600)
     list(APPEND MOTIONPAD_LINK_LIBRARIES psmoveapi ViGEmClient navinput user32 shell32 ole32 uuid SDL3)
     list(APPEND MOTIONPAD_COMPILE_OPTIONS -O2 -Wall -Wextra)
 elseif(MOTIONPAD_COMPILER_KIND STREQUAL "msvc")
