@@ -109,6 +109,7 @@ void deviceSetMoveDisconnected(AppContext *app, int move_index)
 
     app->move_connected[move_index] = false;
     app->move_serials[move_index][0] = '\0';
+    app->move_silence_tick[move_index] = 0;
     moveProfileResetRuntimeState(&app->move_profiles[move_index]);
     moveProfileResetMouseState(&app->move_profiles[move_index]);
 
@@ -132,14 +133,48 @@ void deviceRemoveDisconnectedMovesBestEffort(AppContext *app)
         if (app->move_connected[move_index]) ++connected_slots;
     }
 
-    if (count < connected_slots) {
-        for (move_index = MOVE_COUNT - 1; move_index >= 0; --move_index) {
-            if (app->move_connected[move_index]) {
-                deviceSetMoveDisconnected(app, move_index);
-                ++count;
-                if (count >= connected_slots) break;
-            }
+    if (count >= connected_slots) return;
+
+    for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
+        if (!app->move_connected[move_index]) continue;
+        if (app->moves[move_index] &&
+            psmove_connection_type(app->moves[move_index]) == Conn_Bluetooth) {
+            continue;
         }
+        deviceSetMoveDisconnected(app, move_index);
+        --connected_slots;
+        if (count >= connected_slots) break;
+    }
+}
+
+void deviceCheckMoveSilence(AppContext *app, int move_index, DWORD now, int poll_count)
+{
+    if (!app || move_index < 0 || move_index >= MOVE_COUNT) return;
+    if (!app->move_connected[move_index] || !app->moves[move_index]) return;
+
+    if (psmove_connection_type(app->moves[move_index]) != Conn_Bluetooth) {
+        app->move_silence_tick[move_index] = 0;
+        return;
+    }
+
+    if (poll_count > 0) {
+        app->move_silence_tick[move_index] = 0;
+        return;
+    }
+
+    if (app->move_silence_tick[move_index] == 0) {
+        app->move_silence_tick[move_index] = now ? now : 1;
+        return;
+    }
+
+    if ((DWORD)(now - app->move_silence_tick[move_index]) > MOVE_SILENCE_TIMEOUT_MS) {
+        logWrite(
+            "psmove",
+            "Move%d silent for %lu ms, dropping it",
+            move_index + 1,
+            (unsigned long)MOVE_SILENCE_TIMEOUT_MS
+        );
+        deviceSetMoveDisconnected(app, move_index);
     }
 }
 
@@ -225,6 +260,7 @@ void deviceConnectAvailableMoves(AppContext *app)
 
         app->moves[target_slot] = move;
         app->move_connected[target_slot] = true;
+        app->move_silence_tick[target_slot] = 0;
         ++newly_connected;
         if (serial && serial[0]) {
             strncpy(app->move_serials[target_slot], serial, MOVE_SERIAL_LENGTH - 1);

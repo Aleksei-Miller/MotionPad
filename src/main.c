@@ -245,12 +245,14 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
             }
         }
         if (app.move_connected[0] && app.moves[0]) {
-            processMoveInputDevice(&app.move_profiles[0], app.moves[0], &app.report, now);
+            int polled = processMoveInputDevice(&app.move_profiles[0], app.moves[0], &app.report, now);
             app.move_battery_raw[0] = psmove_get_battery(app.moves[0]);
+            deviceCheckMoveSilence(&app, 0, now, polled);
         }
         if (app.move_connected[1] && app.moves[1]) {
-            processMoveInputDevice(&app.move_profiles[1], app.moves[1], &app.report, now);
+            int polled = processMoveInputDevice(&app.move_profiles[1], app.moves[1], &app.report, now);
             app.move_battery_raw[1] = psmove_get_battery(app.moves[1]);
+            deviceCheckMoveSilence(&app, 1, now, polled);
         }
         maybeSendTelemetry(&app, now);
         if (app.vigem_client && app.vigem_pad) {

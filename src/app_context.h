@@ -56,6 +56,7 @@ typedef struct AppContext {
     char move_serials[MOVE_COUNT][MOVE_SERIAL_LENGTH];
 
     int move_battery_raw[MOVE_COUNT];
+    DWORD move_silence_tick[MOVE_COUNT];
 
     NavDevice *navigators[NAVIGATOR_COUNT];
     NavigatorProfile navigator_profiles[NAVIGATOR_COUNT];

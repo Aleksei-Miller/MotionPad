@@ -78,8 +78,13 @@ A single `XUSB_REPORT` is shared across all connected devices. Processing order 
 
 `psmove_count_connected()` takes **no arguments** — there is no `source_ids` overload (`lib/libpsmoveapi.def`). Passing extra arguments reads caller stack garbage and silently disables any dedupe that depends on them. It is only called to refresh `app->move_count_cache` (`updateServiceDevices` full pass, `deviceRestartDevices`); every other site reads the cache.
 
+### Move liveness
+`processMoveInputDevice` returns how many packets it drained. `deviceCheckMoveSilence` is called with that value right after each Move is processed: a Bluetooth Move that delivers nothing for `MOVE_SILENCE_TIMEOUT_MS` (1500 ms) while the input phase is running is dropped with `deviceSetMoveDisconnected`. This is per-device, so exactly the controller that went silent is removed.
+
+Bluetooth slots are deliberately skipped by `deviceRemoveDisconnectedMovesBestEffort` — a Bluetooth power-off does not reliably drop `psmove_count_connected()`, and guessing a slot from the count would remove the wrong controller. That count-based path only clears non-Bluetooth (USB) slots, which `psmove_poll()` cannot liveness-check.
+
 ### Poll draining
-`psmove_poll()` drains one packet per call. `processMoveInputDevice` uses `while (psmove_poll)` to drain all available packets, ensuring the getters return the latest state. `deviceCheckAlive` and `maybeSendTelemetry` do NOT drain — they read cached state. Battery is cached after `processMoveInputDevice` so tray doesn't need to poll.
+`psmove_poll()` drains one packet per call. `processMoveInputDevice` uses `while (psmove_poll)` to drain all available packets, ensuring the getters return the latest state. `deviceCheckAlive` drains at most one packet per Move; `maybeSendTelemetry` does not poll at all — it reads cached state. Battery is cached after `processMoveInputDevice` so tray doesn't need to poll.
 
 ### Navigation backends
 Two backends, selected by `UseBthPS3` in `settings.ini`:
