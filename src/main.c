@@ -24,21 +24,21 @@ static bool fileExistsW(const wchar_t *path)
 
 static void fallbackToDefaultProfileIfMissing(AppContext *app)
 {
-    wchar_t default_path[MAX_PATH];
+    wchar_t fallback_path[MAX_PATH];
 
     if (!app || fileExistsW(app->config_path)) {
         return;
     }
 
-    profileBuildPath(default_path, MAX_PATH, L"profiles\\default.ini");
-    if (_wcsicmp(app->config_path, default_path) == 0) {
-        logWriteW("config", L"active profile is missing and default profile is already selected: %ls", app->config_path);
+    profileBuildPath(fallback_path, MAX_PATH, L"profiles\\controller mode.ini");
+    if (_wcsicmp(app->config_path, fallback_path) == 0) {
+        logWriteW("config", L"active profile is missing and fallback profile is already selected: %ls", app->config_path);
         return;
     }
 
-    logWriteW("config", L"active profile was deleted, switching to default: %ls", default_path);
+    logWriteW("config", L"active profile was deleted, switching to fallback: %ls", fallback_path);
     profileWatcherStop(app);
-    wcsncpy(app->config_path, default_path, MAX_PATH - 1);
+    wcsncpy(app->config_path, fallback_path, MAX_PATH - 1);
     app->config_path[MAX_PATH - 1] = L'\0';
     profileSaveSettings(app);
     if (!profileWatcherStart(app)) {
