@@ -215,9 +215,10 @@ static int getProfileSortRank(const wchar_t *relative_path)
 {
     if (_wcsicmp(relative_path, L"profiles\\hybrid mode.ini") == 0) return 0;
     if (_wcsicmp(relative_path, L"profiles\\controller mode.ini") == 0) return 1;
-    if (_wcsicmp(relative_path, L"profiles\\arrow mode.ini") == 0) return 2;
-    if (_wcsicmp(relative_path, L"profiles\\wasd mode.ini") == 0) return 3;
-    return 4;
+    if (_wcsicmp(relative_path, L"profiles\\none mode.ini") == 0) return 2;
+    if (_wcsicmp(relative_path, L"profiles\\arrow mode.ini") == 0) return 3;
+    if (_wcsicmp(relative_path, L"profiles\\wasd mode.ini") == 0) return 4;
+    return 5;
 }
 
 static int compareTrayProfiles(const void *left, const void *right)
@@ -333,7 +334,7 @@ static void appendProfilesMenu(HMENU menu_handle, const AppContext *app)
             if (profile_index + 1 < g_tray_profile_count) {
                 int current_rank = getProfileSortRank(g_tray_profiles[profile_index].relative_path);
                 int next_rank = getProfileSortRank(g_tray_profiles[profile_index + 1].relative_path);
-                if (current_rank != next_rank && (current_rank == 1 || current_rank == 3)) {
+                if (current_rank != next_rank && (current_rank == 2 || current_rank == 4)) {
                     AppendMenuW(profiles_menu, MF_SEPARATOR, 0, NULL);
                 }
             }

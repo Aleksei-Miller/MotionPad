@@ -242,6 +242,9 @@ add_custom_command(
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/wasd mode.ini"
         "$<TARGET_FILE_DIR:motionpad>/profiles/wasd mode.ini"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/profiles/none mode.ini"
+        "$<TARGET_FILE_DIR:motionpad>/profiles/none mode.ini"
     VERBATIM
 )
 
