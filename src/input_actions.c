@@ -396,13 +396,13 @@ void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_ti
         return;
     }
     if (action->kind == ActionKind_Keyboard) {
-        if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)repeat_ms) {
+        if (repeat_ms > 0 && (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)repeat_ms)) {
             sendKeyboardEvent(action->data.vkCode, false);
             sendKeyboardEvent(action->data.vkCode, true);
             action->lastRepeatTick = now_tick;
         }
     } else if (action->kind == ActionKind_MouseButton) {
-        if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)mouseRepeatMs) {
+        if (mouseRepeatMs > 0 && (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)mouseRepeatMs)) {
             sendMouseButtonByKind(action->data.mouseButton, false);
             sendMouseButtonByKind(action->data.mouseButton, true);
             action->lastRepeatTick = now_tick;

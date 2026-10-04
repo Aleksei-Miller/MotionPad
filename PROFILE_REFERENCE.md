@@ -317,14 +317,14 @@ Supported fields:
 
 | Name | Description | Value |
 | --- | --- | --- |
-| `Key` | Repeat delay for keyboard actions (button and sensor trigger). When a keyboard key is held, it auto-repeats at this interval. Default: 120ms | `int` milliseconds |
+| `Key` | Repeat delay for keyboard actions (button and sensor trigger). When a keyboard key is held, it auto-repeats at this interval. `-1` keeps the key held continuously while active with no auto-repeat. Default: 120ms | `int` milliseconds, or `-1` |
 
 ### Mouse Section
 - `[Mouse]`
 
 | Name | Description | Value |
 | --- | --- | --- |
-| `Key` | Repeat delay for mouse button actions (button and sensor trigger). When a mouse button is held, it auto-repeats at this interval. Default: 120ms | `int` milliseconds |
+| `Key` | Repeat delay for mouse button actions (button and sensor trigger). When a mouse button is held, it auto-repeats at this interval. `-1` keeps the button held continuously while active with no auto-repeat. Default: 120ms | `int` milliseconds, or `-1` |
 | `Wheel` | Repeat delay for mouse wheel actions (default: 50ms if 0) | `int` milliseconds |
 
 ### Profile Section

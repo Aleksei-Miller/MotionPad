@@ -73,14 +73,16 @@ AxisSettings profileReadAxisSettings(const wchar_t *config_path, const wchar_t *
 int profileReadKeyboardKey(const wchar_t *config_path)
 {
     int repeat_ms = GetPrivateProfileIntW(L"Keyboard", L"Key", 120, config_path);
-    if (repeat_ms < 1) repeat_ms = 1;
+    if (repeat_ms < 0) return -1;
+    if (repeat_ms < 1) return 1;
     return repeat_ms;
 }
 
 int profileReadMouseKey(const wchar_t *config_path)
 {
     int repeat_ms = GetPrivateProfileIntW(L"Mouse", L"Key", 120, config_path);
-    if (repeat_ms < 1) repeat_ms = 1;
+    if (repeat_ms < 0) return -1;
+    if (repeat_ms < 1) return 1;
     return repeat_ms;
 }
 
