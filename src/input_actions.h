@@ -105,7 +105,7 @@ int applyStickAxis(int raw_value, const AxisSettings *axis);
 int applyTriggerSettings(int raw_value, const AxisSettings *axis);
 int normalizeSensorToTrigger(int raw_value);
 int normalizeSensorToThumb(int raw_value);
-void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value, int repeatMs, int mouseRepeatMs, int wheelRepeatMs, DWORD now);
+void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int repeatMs, int mouseRepeatMs, int wheelRepeatMs, DWORD now);
 void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_tick, int repeat_ms, int mouseRepeatMs, int wheelRepeatMs, XUSB_REPORT *report);
 
 #endif

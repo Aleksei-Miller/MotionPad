@@ -100,7 +100,15 @@ static void applyButtonBindingArray(ButtonBinding *bindings, int binding_count, 
                 case ActionKind_ResetAccelY: if (pressed) accel_reset_requested[SensorAxisIndex_Y] = true; break;
                 case ActionKind_ResetAccelZ: if (pressed) accel_reset_requested[SensorAxisIndex_Z] = true; break;
                 case ActionKind_AltMode: if (pressed && alt_mode_requested) *alt_mode_requested = true; break;
-                default: updateDigitalButtonAction(action, pressed, report, ps_trigger, repeatMs, mouseRepeatMs, wheelRepeatMs, now); break;
+                case ActionKind_XboxTrigger:
+                    if (binding->input == MoveButtonInput_Trigger) {
+                        if (action->data.xboxAxis == XboxAxisKind_LT) { if (ps_trigger > report->bLeftTrigger) report->bLeftTrigger = (BYTE)ps_trigger; }
+                        else if (action->data.xboxAxis == XboxAxisKind_RT) { if (ps_trigger > report->bRightTrigger) report->bRightTrigger = (BYTE)ps_trigger; }
+                    } else {
+                        updateDigitalButtonAction(action, pressed, report, repeatMs, mouseRepeatMs, wheelRepeatMs, now);
+                    }
+                    break;
+                default: updateDigitalButtonAction(action, pressed, report, repeatMs, mouseRepeatMs, wheelRepeatMs, now); break;
             }
         }
     }

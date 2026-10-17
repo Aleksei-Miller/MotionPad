@@ -289,7 +289,9 @@ int normalizeSensorToThumb(int raw_value)
     return clampToShort(raw_value * 16);
 }
 
-void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value, int repeatMs, int mouseRepeatMs, int wheelRepeatMs, DWORD now)
+enum { MOUSE_BUTTON_MOVE_STEP = 10 };
+
+void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int repeatMs, int mouseRepeatMs, int wheelRepeatMs, DWORD now)
 {
     if (!action) return;
     switch (action->kind) {
@@ -355,9 +357,24 @@ void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *
             break;
         case ActionKind_XboxTrigger:
             if (pressed) {
-                if (action->data.xboxAxis == XboxAxisKind_LT) { if ((BYTE)trigger_value > report->bLeftTrigger) report->bLeftTrigger = (BYTE)trigger_value; }
-                else if (action->data.xboxAxis == XboxAxisKind_RT) { if ((BYTE)trigger_value > report->bRightTrigger) report->bRightTrigger = (BYTE)trigger_value; }
+                if (action->data.xboxAxis == XboxAxisKind_LT) report->bLeftTrigger = 255;
+                else if (action->data.xboxAxis == XboxAxisKind_RT) report->bRightTrigger = 255;
             }
+            break;
+        case ActionKind_XboxAxis:
+        case ActionKind_XboxAxis_Pos:
+        case ActionKind_XboxAxis_Neg:
+            if (pressed) setXboxAxisValue(report, action->data.xboxAxis, action->kind == ActionKind_XboxAxis_Neg ? -32767 : 32767);
+            break;
+        case ActionKind_MouseMoveX:
+        case ActionKind_MouseMoveX_Pos:
+        case ActionKind_MouseMoveX_Neg:
+            if (pressed) sendMouseMoveDelta(action->kind == ActionKind_MouseMoveX_Neg ? -MOUSE_BUTTON_MOVE_STEP : MOUSE_BUTTON_MOVE_STEP, 0);
+            break;
+        case ActionKind_MouseMoveY:
+        case ActionKind_MouseMoveY_Pos:
+        case ActionKind_MouseMoveY_Neg:
+            if (pressed) sendMouseMoveDelta(0, action->kind == ActionKind_MouseMoveY_Neg ? -MOUSE_BUTTON_MOVE_STEP : MOUSE_BUTTON_MOVE_STEP);
             break;
         default: break;
     }

@@ -136,9 +136,10 @@ static void applyNavigatorButtonBindingArray(NavDevice *nav, NavigatorButtonBind
             }
 
             if (binding->input == NavigatorButtonInput_L2 && action->kind == ActionKind_XboxTrigger) {
-                setXboxAxisValue(report, action->data.xboxAxis, trigger_value);
+                if (action->data.xboxAxis == XboxAxisKind_LT) { if (trigger_value > report->bLeftTrigger) report->bLeftTrigger = (BYTE)trigger_value; }
+                else if (action->data.xboxAxis == XboxAxisKind_RT) { if (trigger_value > report->bRightTrigger) report->bRightTrigger = (BYTE)trigger_value; }
             } else {
-                updateDigitalButtonAction(action, pressed, report, trigger_value, repeatMs, mouseRepeatMs, wheelRepeatMs, now);
+                updateDigitalButtonAction(action, pressed, report, repeatMs, mouseRepeatMs, wheelRepeatMs, now);
             }
         }
     }
