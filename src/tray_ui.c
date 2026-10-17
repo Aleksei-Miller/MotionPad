@@ -754,18 +754,18 @@ static LRESULT CALLBACK trayWindowProc(HWND window_handle, UINT message, WPARAM 
                     buildBatteryMenuText(g_app, battery_text, 64);
                     AppendMenuW(menu_handle, MF_STRING | MF_GRAYED, 0, battery_text);
                     AppendMenuW(menu_handle, MF_SEPARATOR, 0, NULL);
-					AppendMenuW(menu_handle, MF_STRING, ID_TRAY_EDIT_PROFILE, L"Edit Profile");
+                    AppendMenuW(menu_handle, MF_STRING, ID_TRAY_EDIT_PROFILE, L"Edit Profile");
                     appendProfilesMenu(menu_handle, g_app);
                     AppendMenuW(menu_handle, MF_SEPARATOR, 0, NULL);
                     HMENU service_menu = CreatePopupMenu();
                     if (service_menu) {
-                        AppendMenuW(service_menu, MF_STRING, ID_TRAY_CALIBRATE_PSMOVE, L"Calibrate PS Move");
-                        AppendMenuW(service_menu, MF_STRING, ID_TRAY_PAIR_PSMOVE, L"Pair PS Move");
-                        AppendMenuW(service_menu, MF_SEPARATOR, 0, NULL);
                         AppendMenuW(service_menu, MF_STRING, ID_TRAY_RECONNECT_DEVICES, L"Reconnect Devices");
                         AppendMenuW(service_menu, MF_STRING, ID_TRAY_TOGGLE_EMULATION, emulation_label);
+                        AppendMenuW(service_menu, MF_SEPARATOR, 0, NULL);
+                        AppendMenuW(service_menu, MF_STRING, ID_TRAY_CALIBRATE_PSMOVE, L"Calibrate PS Move");
+                        AppendMenuW(service_menu, MF_STRING, ID_TRAY_PAIR_PSMOVE, L"Pair PS Move");
                         AppendMenuW(menu_handle, MF_POPUP, (UINT_PTR)service_menu, L"Service");
-                     }
+                    }
                     AppendMenuW(menu_handle, MF_SEPARATOR, 0, NULL);
                     AppendMenuW(menu_handle, MF_STRING, ID_TRAY_EXIT, L"Exit");
                     GetCursorPos(&cursor_pos);
