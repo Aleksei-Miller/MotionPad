@@ -671,19 +671,25 @@ void trayToggleEmulation(AppContext *app)
 static void trayLaunchPSMoveCalibration(void)
 {
     wchar_t app_dir[MAX_PATH];
-    wchar_t command_line[MAX_PATH];
+    wchar_t comspec[MAX_PATH];
+    wchar_t command_line[MAX_PATH * 2 + 64];
     STARTUPINFOW startup_info;
     PROCESS_INFORMATION process_info;
     int written;
 
     if (!buildExecutableDirectory(app_dir, MAX_PATH)) return;
 
-    written = _snwprintf(command_line, MAX_PATH, L"\"%ls\\psmove.exe\" calibrate", app_dir);
-    if (written < 0 || written >= MAX_PATH) {
+    if (GetEnvironmentVariableW(L"ComSpec", comspec, MAX_PATH) == 0 || comspec[0] == L'\0') {
+        wcsncpy(comspec, L"cmd.exe", MAX_PATH);
+        comspec[MAX_PATH - 1] = L'\0';
+    }
+
+    written = _snwprintf(command_line, MAX_PATH * 2 + 64, L"\"%ls\" /k \"\"%ls\\psmove.exe\" calibrate\"", comspec, app_dir);
+    if (written < 0 || written >= MAX_PATH * 2 + 64) {
         logWrite("tray", "psmove.exe path is too long");
         return;
     }
-    command_line[MAX_PATH - 1] = L'\0';
+    command_line[MAX_PATH * 2 + 63] = L'\0';
 
     ZeroMemory(&startup_info, sizeof(startup_info));
     startup_info.cb = sizeof(startup_info);
@@ -702,20 +708,28 @@ static void trayLaunchPSMoveCalibration(void)
 static void trayPairPSMove(void)
 {
     wchar_t app_dir[MAX_PATH];
-    wchar_t exe_path[MAX_PATH];
-    // Show instruction to the user
+    wchar_t comspec[MAX_PATH];
+    wchar_t parameters[MAX_PATH + 48];
+    HINSTANCE result;
+    int written;
+
     MessageBoxW(NULL, L"Please connect PS Move via USB to PC.", L"Pair PS Move", MB_OK | MB_ICONINFORMATION);
 
     if (!buildExecutableDirectory(app_dir, MAX_PATH)) return;
 
-    if (_snwprintf(exe_path, MAX_PATH, L"%ls\\psmove.exe", app_dir) < 0) {
+    if (GetEnvironmentVariableW(L"ComSpec", comspec, MAX_PATH) == 0 || comspec[0] == L'\0') {
+        wcsncpy(comspec, L"cmd.exe", MAX_PATH);
+        comspec[MAX_PATH - 1] = L'\0';
+    }
+
+    written = _snwprintf(parameters, MAX_PATH + 48, L"/k \"\"%ls\\psmove.exe\" pair\"", app_dir);
+    if (written < 0 || written >= MAX_PATH + 48) {
         logWrite("tray", "psmove.exe path is too long");
         return;
     }
-    exe_path[MAX_PATH - 1] = L'\0';
+    parameters[MAX_PATH + 47] = L'\0';
 
-    // Launch psmove.exe with "pair" argument using elevated privileges
-    HINSTANCE result = ShellExecuteW(NULL, L"runas", exe_path, L"pair", NULL, SW_SHOWNORMAL);
+    result = ShellExecuteW(NULL, L"runas", comspec, parameters, NULL, SW_SHOWNORMAL);
     if ((INT_PTR)result <= 32) {
         logLastErrorW(L"ShellExecuteW(psmove.exe pair) failed");
     } else {
