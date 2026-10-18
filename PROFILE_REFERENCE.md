@@ -82,12 +82,13 @@ Description | Value |
 | --- | --- |
 | Letters | `a-z` |
 | Digits | `0-9` |
-| Function keys | `f1-f12` |
+| Function keys | `f1-f24` |
 | Control keys | `enter`, `return`, `space`, `tab`, `esc`, `escape`, `backspace`, `back` |
-| Navigation keys | `left`, `right`, `up`, `down`, `home`, `end`, `pageup`, `pagedown`, `pgup`, `pgdn`, `insert`, `delete`, `ins`, `del`
+| Navigation keys | `left`, `right`, `up`, `down`, `home`, `end`, `pageup`, `pagedown`, `pgup`, `pgdn`, `insert`, `delete`, `ins`, `del` |
 | Modifiers | `shift`, `ctrl`, `control`, `alt`, `lshift`, `rshift`, `lctrl`, `rctrl`, `lcontrol`, `rcontrol`, `lalt`, `ralt` |
 | Lock/system keys | `capslock`, `numlock`, `scrolllock`, `printscreen`, `prtsc`, `pause`, `apps`, `menu`, `win`, `lwin`, `rwin` |
 | Numpad keys | `numpad0-numpad9`, `add`, `subtract`, `multiply`, `divide`, `decimal` |
+| Symbols | `backtick`, `minus`, `equals`, `lbracket`, `rbracket`, `backslash`, `semicolon`, `apostrophe`, `comma`, `period`, `slash`, `oem102` |
 
 Examples:
 
@@ -96,6 +97,7 @@ Examples:
 - `k:space`
 - `k:f1`
 - `k:left`
+- `k:backtick`
 
 ### `o:` Internal
 
