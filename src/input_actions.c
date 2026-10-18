@@ -86,7 +86,7 @@ UINT resolveVirtualKeyFromName(const wchar_t *key_name)
     VKCMP("COMMA", VK_OEM_COMMA);
     VKCMP("PERIOD", VK_OEM_PERIOD);
     VKCMP("SLASH", VK_OEM_2);
-    VKCMP("OEM_102", VK_OEM_102);
+    VKCMP("OEM102", VK_OEM_102);
 #undef VKCMP
     return 0;
 }
