@@ -20,7 +20,7 @@ It is designed to stay in the background, reload profiles without restarting, an
 
 ## PS Navigation Setup
 
-MotionPad uses the SDL3 backend for PS Navigation controllers (USB and Bluetooth).
+MotionPad uses the SDL3 backend for Navigation controllers.
 
 #### Driver Setup (BthPS3 + DsHidMini)
 
@@ -31,9 +31,9 @@ MotionPad uses the SDL3 backend for PS Navigation controllers (USB and Bluetooth
 5. Install DsHidMini
 6. **Reboot**
 7. Run **BthPS3 Driver Configuration Utility**, go to *Profile Driver Settings*, enable **"Enable PlayStation Move Navigation Support"**, leave **"Enable PlayStation Move Motion Support"** disabled
-8. Connect PS Navigation via USB to verify detection
+8. Connect the Navigation controller via USB to verify detection
 9. Run **DsHidMini Control App**, select the Navigation controller under *Devices*, open *Configure*, and set **HID Mode → HID Emulation Mode** to **SXS**
-10. Disconnect PS Navigation from USB
+10. Disconnect the Navigation controller from USB
 11. Press the **PS** button on the Navigation controller
 12. The controller is now ready. It connects automatically when the PS button is pressed
 
