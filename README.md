@@ -50,7 +50,7 @@ From the tray you can:
 - See controller battery summary
 - Enable or disable emulation
 - Pair PS Move controllers
-- Reconnect PS Move, PS Navigation 
+- Reconnect PS Move and PS Navigation controllers
 - Launch PS Move calibration
 - Switch the active profile
 
