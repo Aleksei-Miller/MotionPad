@@ -15,7 +15,6 @@ Section`[General]`
 | `Path` | Active profile path | Relative path |
 | `EnableOutput` | Enable or disable emulation | `0` or `1` |
 | `EnableTelemetry` | Stream controller state to named pipe | `0` or `1` |
-| `UseBthPS3` | Use BthPS3 Bluetooth backend for Navigation | `0` or `1` |
 | `UseAutoProfile` | Auto-switch profile based on foreground window | `0` or `1` |
 | `PollRateMs` | Main loop sleep in ms (1-100) | int |
 

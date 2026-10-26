@@ -16,31 +16,13 @@ It is designed to stay in the background, reload profiles without restarting, an
 ## System requirements:
 
 - [ViGEmBus](https://github.com/nefarius/ViGEmBus)
-- [Zadig](https://zadig.akeo.ie) (required for PS Navigation WinUSB driver installation)
-- [BthPS3](https://github.com/nefarius/BthPS3) + [DsHidMini v2.2.282](https://github.com/nefarius/dshidmini) (optional, for PS Navigation over Bluetooth)
+- [BthPS3](https://github.com/nefarius/BthPS3) + [DsHidMini v2.2.282](https://github.com/nefarius/dshidmini) (for PS Navigation controllers)
 
 ## PS Navigation Setup
 
-MotionPad supports two backends for PS Navigation controllers, selected at startup via `UseBthPS3` in `runtime/settings.ini`:
+MotionPad uses the SDL3 backend for PS Navigation controllers (USB and Bluetooth).
 
-| Backend | Connection | Driver |
-|---------|-----------|--------|
-| `libnavinput` (default, `UseBthPS3=0`) | USB only | WinUSB via Zadig |
-| SDL3 (`UseBthPS3=1`) | USB and Bluetooth | BthPS3 + DsHidMini |
-
-#### Driver Setup — Wired USB (libnavinput)
-
-1. Connect the Navigation Controller via USB.
-2. Run **Zadig** as Administrator.
-3. Select `Options` -> `List All Devices`.
-4. Select **Navigation Controller** from the dropdown list.
-5. Set the target driver to **WinUSB** (using the arrows).
-6. Click **Replace Driver**.
-7. Once finished, the device should appear under "Universal Serial Bus devices" in Device Manager.
-
-#### Driver Setup — Bluetooth (BthPS3)
-
-For wireless use with the BthPS3 backend, set `UseBthPS3=1` in `runtime/settings.ini`.
+#### Driver Setup (BthPS3 + DsHidMini)
 
 1. Remove all Bluetooth devices from Windows Bluetooth settings
 2. Install [BthPS3](https://github.com/nefarius/BthPS3)
@@ -112,7 +94,7 @@ Profile sections, field names, binding syntax, and action prefixes are documente
 
 - `src/` - application sources
 - `include/` - bundled headers
-- `include/SDL3/` - SDL3 headers (for SDL3 backend)
+- `include/SDL3/` - SDL3 headers
 - `lib/` - `.def` files and import libraries
 - `lib/SDL3/` - SDL3 import library and DEF file
 - `runtime/` - runtime DLLs and default config
@@ -159,9 +141,7 @@ Notes:
 - Manual message loop via `PeekMessageW`
 - Config reload via file watching
 - PS Move support delegated to `psmoveapi`
-- PS Navigation support via two backends (selected at startup via `UseBthPS3` in `runtime/settings.ini`):
-  - `libnavinput` — USB-only.
-  - SDL3 — USB and Bluetooth (via BthPS3 + DsHidMini).
+- PS Navigation support via SDL3 (requires BthPS3 + DsHidMini, see setup above).
 - Poll rate controlled via `PollRateMs` in `runtime/settings.ini` (1-100 ms, hot-reloadable)
 - Telemetry streams controller state to `\\.\pipe\motionpad` when `EnableTelemetry=1` in `runtime/settings.ini`
 - Xbox 360 controller emulation delegated to `ViGEmClient`

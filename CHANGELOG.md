@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+
+- **`libnavinput` Navigation backend** — SDL3 is now the only backend for PS Navigation controllers (USB/BT via BthPS3 + DsHidMini). `UseBthPS3` in `settings.ini` removed, `NavBackend`/`NavDeviceType` enums and `navDeviceGetType()` removed.
+
 ## [0.1.1]
 
 ### Added

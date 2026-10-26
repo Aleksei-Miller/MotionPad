@@ -34,7 +34,7 @@ app/
 | `device_manager.c` | Connect/disconnect detection for Move + Navigation |
 | `move_input.c` | PS Move polling + binding processing |
 | `navigator_input.c` | PS Navigation binding processing |
-| `nav_device.c` | Navigation device abstraction (libnavinput / SDL3 backends) |
+| `nav_device.c` | Navigation device abstraction (SDL3 backend) |
 | `vigem_manager.c` | ViGEmBus client: create/destroy/submit Xbox 360 pad |
 | `tray_ui.c` | System tray icon, tooltip (battery), menu |
 | `profile_watcher.c` | Filesystem watcher for live profile reload |
@@ -87,9 +87,7 @@ Bluetooth slots are deliberately skipped by `deviceRemoveDisconnectedMovesBestEf
 `psmove_poll()` drains one packet per call. `processMoveInputDevice` uses `while (psmove_poll)` to drain all available packets, ensuring the getters return the latest state. `deviceCheckAlive` drains at most one packet per Move; `maybeSendTelemetry` does not poll at all — it reads cached state. Battery is cached after `processMoveInputDevice` so tray doesn't need to poll.
 
 ### Navigation backends
-Two backends, selected by `UseBthPS3` in `settings.ini`:
-- `libnavinput` — USB-only, WinUSB driver, battery via `psnavigatorGetBattery()`
-- `SDL3` — USB/BT, requires BthPS3 + DsHidMini mode 3, battery via `HidD_GetFeature` 50-byte report (byte[31]: 0x00–0x05 = battery, 0xEE/0xEF = USB)
+Single SDL3 backend for PS Navigation (USB/BT, requires BthPS3 + DsHidMini mode 3), battery via `HidD_GetFeature` 50-byte report (byte[31]: 0x00–0x05 = battery, 0xEE/0xEF = USB)
 
 ## Auto-Profile Switching
 
