@@ -16,7 +16,7 @@ It is designed to stay in the background, reload profiles without restarting, an
 ## System requirements:
 
 - [ViGEmBus](https://github.com/nefarius/ViGEmBus)
-- [BthPS3](https://github.com/nefarius/BthPS3) + [DsHidMini v2.2.282](https://github.com/nefarius/dshidmini) (for PS Navigation controllers)
+- [BthPS3](https://github.com/nefarius/BthPS3) + [DsHidMini](https://github.com/nefarius/dshidmini) (for PS Navigation controllers)
 
 ## PS Navigation Setup
 
@@ -27,18 +27,15 @@ MotionPad uses the SDL3 backend for PS Navigation controllers (USB and Bluetooth
 1. Remove all Bluetooth devices from Windows Bluetooth settings
 2. Install [BthPS3](https://github.com/nefarius/BthPS3)
 3. **Reboot**
-4. Download [DsHidMini v2.2.282](https://github.com/nefarius/dshidmini)
-5. Prepare `dshidmini.inf`:
-   - Uncomment lines 63 and 65 (enable Navigation Controller hardware IDs)
-   - On line 129, change the last value from `5` to `3` (DS3-compatible mode instead of XInput)
-   - Install the modified driver via [fawazahmed0/windows-unsigned-driver-installer](https://github.com/fawazahmed0/windows-unsigned-driver-installer)
+4. Download [DsHidMini](https://github.com/nefarius/dshidmini)
+5. Install DsHidMini
 6. **Reboot**
 7. Run **BthPS3 Driver Configuration Utility**, go to *Profile Driver Settings*, enable **"Enable PlayStation Move Navigation Support"**, leave **"Enable PlayStation Move Motion Support"** disabled
 8. Connect PS Navigation via USB to verify detection
-9. Disconnect PS Navigation from USB
-10. Press the **PS** button on the controller — it appears as an unknown device
-11. In Device Manager, assign the dshidmini driver manually → select **"Navigation Compatible HID Device"**
-12. The controller is now ready. It connects automatically when the PS button is pressed.
+9. Run **DsHidMini Control App**, select the Navigation controller under *Devices*, open *Configure*, and set **HID Mode → HID Emulation Mode** to **SXS**
+10. Disconnect PS Navigation from USB
+11. Press the **PS** button on the Navigation controller
+12. The controller is now ready. It connects automatically when the PS button is pressed
 
 ## How To Start
 
@@ -52,7 +49,8 @@ From the tray you can:
 
 - See controller battery summary
 - Enable or disable emulation
-- Pair PS Move controllers 
+- Pair PS Move controllers
+- Reconnect PS Move, PS Navigation 
 - Launch PS Move calibration
 - Switch the active profile
 
@@ -79,7 +77,7 @@ Only the basename is matched (case-insensitive), so `game.exe` works even with a
 #### Limits:
 
 - Up to 2 PS Move controllers
-- Up to 2 PS Navigation controllers (USB or Bluetooth)
+- Up to 2 PS Navigation controllers
 
 #### Logs
 
@@ -163,4 +161,6 @@ All other trademarks, logos, and brands are the property of their respective own
 * [Simple DirectMedia Layer](https://github.com/libsdl-org/SDL) — Licensed under the [Zlib license](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt).
 
 ### Credits
-* Developed via ChatGPT, DeepSeek (Prompt-based development).
+
+* Initial implementation written in ChatGPT (Codex).
+* Further development in OpenCode Desktop using multiple built-in models — all via prompt-based development.
