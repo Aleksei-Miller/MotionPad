@@ -174,7 +174,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
     last_service_poll_tick = last_tray_update_tick;
 
     psmove_init(PSMOVE_CURRENT_VERSION);
-    navDeviceGlobalInit(app.use_bthps3 ? NavBackend_SDL3 : NavBackend_LibNav);
+    navDeviceGlobalInit();
     logWrite("main", "started. waiting for PS Move and PS Navigator controllers...");
 
     while (InterlockedCompareExchange(&app.running, 1, 1)) {

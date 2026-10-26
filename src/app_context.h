@@ -64,7 +64,6 @@ typedef struct AppContext {
     char navigator_cooldown_path[NAVIGATOR_COUNT][NAVIGATOR_PATH_LENGTH];
     DWORD navigator_cooldown_tick[NAVIGATOR_COUNT];
     DWORD navigator_reconnect_tick;
-    bool use_bthps3;
     bool use_auto_profile;
     int poll_rate_ms;
     RumbleConfig rumble_config;

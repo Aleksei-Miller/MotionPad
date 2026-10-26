@@ -50,24 +50,6 @@ static void logLastErrorW(const wchar_t *prefix)
     }
 }
 
-static int navigatorBatteryRawToPercent(int battery_raw, bool is_sdl3)
-{
-    if (is_sdl3) {
-        return battery_raw;
-    }
-    switch (battery_raw) {
-        case 0x00: return 0;
-        case 0x01: return 20;
-        case 0x02: return 40;
-        case 0x03: return 60;
-        case 0x04: return 80;
-        case 0x05: return 100;
-        case 0xEE: return 100;
-        case 0xEF: return 100;
-        default: return 0;
-    }
-}
-
 static bool buildExecutableDirectory(wchar_t *out_dir, size_t out_count)
 {
     DWORD module_len;
@@ -598,14 +580,13 @@ static void buildBatteryMenuText(const AppContext *app, wchar_t *out_text, size_
 
     for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT && pos < out_count; ++navigator_index) {
         if (app->navigators[navigator_index]) {
-            bool is_sdl3 = navDeviceGetType(app->navigators[navigator_index]) == NavDevType_SDL3;
             int battery_raw = navDeviceGetBattery(app->navigators[navigator_index]);
             int percent = -1;
 
             if (battery_raw == NAV_BATTERY_USB) {
                 percent = NAV_BATTERY_USB;
             } else if (battery_raw >= 0) {
-                percent = navigatorBatteryRawToPercent(battery_raw, is_sdl3);
+                percent = battery_raw;
             }
 
             if (percent == NAV_BATTERY_USB) {
