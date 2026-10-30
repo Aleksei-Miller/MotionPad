@@ -75,6 +75,18 @@ UINT resolveVirtualKeyFromName(const wchar_t *key_name)
     VKCMP("APPS", VK_APPS); VKCMP("MENU", VK_APPS); VKCMP("PRINTSCREEN", VK_SNAPSHOT); VKCMP("PRTSC", VK_SNAPSHOT); VKCMP("SCROLLLOCK", VK_SCROLL); VKCMP("PAUSE", VK_PAUSE); VKCMP("NUMLOCK", VK_NUMLOCK);
     VKCMP("NUMPAD0", VK_NUMPAD0); VKCMP("NUMPAD1", VK_NUMPAD1); VKCMP("NUMPAD2", VK_NUMPAD2); VKCMP("NUMPAD3", VK_NUMPAD3); VKCMP("NUMPAD4", VK_NUMPAD4); VKCMP("NUMPAD5", VK_NUMPAD5); VKCMP("NUMPAD6", VK_NUMPAD6); VKCMP("NUMPAD7", VK_NUMPAD7); VKCMP("NUMPAD8", VK_NUMPAD8); VKCMP("NUMPAD9", VK_NUMPAD9);
     VKCMP("ADD", VK_ADD); VKCMP("SUBTRACT", VK_SUBTRACT); VKCMP("MULTIPLY", VK_MULTIPLY); VKCMP("DIVIDE", VK_DIVIDE); VKCMP("DECIMAL", VK_DECIMAL);
+    VKCMP("BACKTICK", VK_OEM_3);
+    VKCMP("MINUS", VK_OEM_MINUS);
+    VKCMP("EQUALS", VK_OEM_PLUS);
+    VKCMP("LBRACKET", VK_OEM_4);
+    VKCMP("RBRACKET", VK_OEM_6);
+    VKCMP("BACKSLASH", VK_OEM_5);
+    VKCMP("SEMICOLON", VK_OEM_1);
+    VKCMP("APOSTROPHE", VK_OEM_7);
+    VKCMP("COMMA", VK_OEM_COMMA);
+    VKCMP("PERIOD", VK_OEM_PERIOD);
+    VKCMP("SLASH", VK_OEM_2);
+    VKCMP("OEM102", VK_OEM_102);
 #undef VKCMP
     return 0;
 }
@@ -289,7 +301,9 @@ int normalizeSensorToThumb(int raw_value)
     return clampToShort(raw_value * 16);
 }
 
-void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int trigger_value, int repeatMs, int mouseRepeatMs, int wheelRepeatMs, DWORD now)
+enum { MOUSE_BUTTON_MOVE_STEP = 10 };
+
+void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *report, int repeatMs, int mouseRepeatMs, int wheelRepeatMs, DWORD now)
 {
     if (!action) return;
     switch (action->kind) {
@@ -355,9 +369,24 @@ void updateDigitalButtonAction(ButtonAction *action, bool pressed, XUSB_REPORT *
             break;
         case ActionKind_XboxTrigger:
             if (pressed) {
-                if (action->data.xboxAxis == XboxAxisKind_LT) { if ((BYTE)trigger_value > report->bLeftTrigger) report->bLeftTrigger = (BYTE)trigger_value; }
-                else if (action->data.xboxAxis == XboxAxisKind_RT) { if ((BYTE)trigger_value > report->bRightTrigger) report->bRightTrigger = (BYTE)trigger_value; }
+                if (action->data.xboxAxis == XboxAxisKind_LT) report->bLeftTrigger = 255;
+                else if (action->data.xboxAxis == XboxAxisKind_RT) report->bRightTrigger = 255;
             }
+            break;
+        case ActionKind_XboxAxis:
+        case ActionKind_XboxAxis_Pos:
+        case ActionKind_XboxAxis_Neg:
+            if (pressed) setXboxAxisValue(report, action->data.xboxAxis, action->kind == ActionKind_XboxAxis_Neg ? -32767 : 32767);
+            break;
+        case ActionKind_MouseMoveX:
+        case ActionKind_MouseMoveX_Pos:
+        case ActionKind_MouseMoveX_Neg:
+            if (pressed) sendMouseMoveDelta(action->kind == ActionKind_MouseMoveX_Neg ? -MOUSE_BUTTON_MOVE_STEP : MOUSE_BUTTON_MOVE_STEP, 0);
+            break;
+        case ActionKind_MouseMoveY:
+        case ActionKind_MouseMoveY_Pos:
+        case ActionKind_MouseMoveY_Neg:
+            if (pressed) sendMouseMoveDelta(0, action->kind == ActionKind_MouseMoveY_Neg ? -MOUSE_BUTTON_MOVE_STEP : MOUSE_BUTTON_MOVE_STEP);
             break;
         default: break;
     }
@@ -396,13 +425,13 @@ void applySensorButtonLikeAction(SensorAction *action, bool active, DWORD now_ti
         return;
     }
     if (action->kind == ActionKind_Keyboard) {
-        if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)repeat_ms) {
+        if (repeat_ms > 0 && (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)repeat_ms)) {
             sendKeyboardEvent(action->data.vkCode, false);
             sendKeyboardEvent(action->data.vkCode, true);
             action->lastRepeatTick = now_tick;
         }
     } else if (action->kind == ActionKind_MouseButton) {
-        if (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)mouseRepeatMs) {
+        if (mouseRepeatMs > 0 && (action->lastRepeatTick == 0 || now_tick - action->lastRepeatTick >= (DWORD)mouseRepeatMs)) {
             sendMouseButtonByKind(action->data.mouseButton, false);
             sendMouseButtonByKind(action->data.mouseButton, true);
             action->lastRepeatTick = now_tick;

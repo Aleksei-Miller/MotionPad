@@ -15,7 +15,6 @@ Section`[General]`
 | `Path` | Active profile path | Relative path |
 | `EnableOutput` | Enable or disable emulation | `0` or `1` |
 | `EnableTelemetry` | Stream controller state to named pipe | `0` or `1` |
-| `UseBthPS3` | Use BthPS3 Bluetooth backend for Navigation | `0` or `1` |
 | `UseAutoProfile` | Auto-switch profile based on foreground window | `0` or `1` |
 | `PollRateMs` | Main loop sleep in ms (1-100) | int |
 
@@ -82,12 +81,13 @@ Description | Value |
 | --- | --- |
 | Letters | `a-z` |
 | Digits | `0-9` |
-| Function keys | `f1-f12` |
+| Function keys | `f1-f24` |
 | Control keys | `enter`, `return`, `space`, `tab`, `esc`, `escape`, `backspace`, `back` |
-| Navigation keys | `left`, `right`, `up`, `down`, `home`, `end`, `pageup`, `pagedown`, `pgup`, `pgdn`, `insert`, `delete`, `ins`, `del`
+| Navigation keys | `left`, `right`, `up`, `down`, `home`, `end`, `pageup`, `pagedown`, `pgup`, `pgdn`, `insert`, `delete`, `ins`, `del` |
 | Modifiers | `shift`, `ctrl`, `control`, `alt`, `lshift`, `rshift`, `lctrl`, `rctrl`, `lcontrol`, `rcontrol`, `lalt`, `ralt` |
 | Lock/system keys | `capslock`, `numlock`, `scrolllock`, `printscreen`, `prtsc`, `pause`, `apps`, `menu`, `win`, `lwin`, `rwin` |
 | Numpad keys | `numpad0-numpad9`, `add`, `subtract`, `multiply`, `divide`, `decimal` |
+| Symbols | `backtick`, `minus`, `equals`, `lbracket`, `rbracket`, `backslash`, `semicolon`, `apostrophe`, `comma`, `period`, `slash`, `oem102` |
 
 Examples:
 
@@ -96,6 +96,7 @@ Examples:
 - `k:space`
 - `k:f1`
 - `k:left`
+- `k:backtick`
 
 ### `o:` Internal
 
@@ -317,14 +318,14 @@ Supported fields:
 
 | Name | Description | Value |
 | --- | --- | --- |
-| `Key` | Repeat delay for keyboard actions (button and sensor trigger). When a keyboard key is held, it auto-repeats at this interval. Default: 120ms | `int` milliseconds |
+| `Key` | Repeat delay for keyboard actions (button and sensor trigger). When a keyboard key is held, it auto-repeats at this interval. `-1` keeps the key held continuously while active with no auto-repeat. Default: 120ms | `int` milliseconds, or `-1` |
 
 ### Mouse Section
 - `[Mouse]`
 
 | Name | Description | Value |
 | --- | --- | --- |
-| `Key` | Repeat delay for mouse button actions (button and sensor trigger). When a mouse button is held, it auto-repeats at this interval. Default: 120ms | `int` milliseconds |
+| `Key` | Repeat delay for mouse button actions (button and sensor trigger). When a mouse button is held, it auto-repeats at this interval. `-1` keeps the button held continuously while active with no auto-repeat. Default: 120ms | `int` milliseconds, or `-1` |
 | `Wheel` | Repeat delay for mouse wheel actions (default: 50ms if 0) | `int` milliseconds |
 
 ### Profile Section

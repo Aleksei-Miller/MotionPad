@@ -83,6 +83,6 @@ typedef struct MoveProfile {
 
 void moveProfileResetRuntimeState(MoveProfile *profile);
 void moveProfileResetMouseState(MoveProfile *profile);
-void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *report, DWORD now);
+int processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *report, DWORD now);
 
 #endif

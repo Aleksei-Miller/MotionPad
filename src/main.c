@@ -24,21 +24,21 @@ static bool fileExistsW(const wchar_t *path)
 
 static void fallbackToDefaultProfileIfMissing(AppContext *app)
 {
-    wchar_t default_path[MAX_PATH];
+    wchar_t fallback_path[MAX_PATH];
 
     if (!app || fileExistsW(app->config_path)) {
         return;
     }
 
-    profileBuildPath(default_path, MAX_PATH, L"profiles\\default.ini");
-    if (_wcsicmp(app->config_path, default_path) == 0) {
-        logWriteW("config", L"active profile is missing and default profile is already selected: %ls", app->config_path);
+    profileBuildPath(fallback_path, MAX_PATH, L"profiles\\controller mode.ini");
+    if (_wcsicmp(app->config_path, fallback_path) == 0) {
+        logWriteW("config", L"active profile is missing and fallback profile is already selected: %ls", app->config_path);
         return;
     }
 
-    logWriteW("config", L"active profile was deleted, switching to default: %ls", default_path);
+    logWriteW("config", L"active profile was deleted, switching to fallback: %ls", fallback_path);
     profileWatcherStop(app);
-    wcsncpy(app->config_path, default_path, MAX_PATH - 1);
+    wcsncpy(app->config_path, fallback_path, MAX_PATH - 1);
     app->config_path[MAX_PATH - 1] = L'\0';
     profileSaveSettings(app);
     if (!profileWatcherStart(app)) {
@@ -46,15 +46,26 @@ static void fallbackToDefaultProfileIfMissing(AppContext *app)
     }
 }
 
-static void updateServiceDevices(AppContext *app, DWORD *last_service_tick, DWORD now)
+static void updateServiceDevices(AppContext *app, DWORD *last_service_tick, DWORD *last_full_poll_tick, DWORD now)
 {
-    if ((DWORD)(now - *last_service_tick) >= SERVICE_POLL_MS) {
-        deviceRemoveDisconnectedMovesBestEffort(app);
-        deviceConnectAvailableMoves(app);
+    bool service_dirty = InterlockedExchange(&app->service_dirty, 0) != 0;
+    bool nav_due = service_dirty || (DWORD)(now - *last_service_tick) >= SERVICE_POLL_MS;
+    bool full_due = service_dirty || *last_full_poll_tick == 0 ||
+        (DWORD)(now - *last_full_poll_tick) >= SERVICE_FALLBACK_POLL_MS;
+
+    if (nav_due) {
         deviceConnectNavigatorsIfNeeded(app, now);
-        app->move_count_cache = psmove_count_connected();
         *last_service_tick = now;
     }
+
+    if (!full_due) {
+        return;
+    }
+    *last_full_poll_tick = now;
+
+    app->move_count_cache = psmove_count_connected();
+    deviceRemoveDisconnectedMovesBestEffort(app);
+    deviceConnectAvailableMoves(app);
 }
 
 static void updateTrayTooltipIfNeeded(AppContext *app, DWORD *last_tray_tick, DWORD now)
@@ -121,6 +132,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 
     DWORD last_tray_update_tick = 0;
     DWORD last_service_poll_tick = 0;
+    DWORD last_service_full_tick = 0;
     DWORD last_liveness_tick = 0;
     (void)instance;
     (void)prev_instance;
@@ -162,7 +174,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
     last_service_poll_tick = last_tray_update_tick;
 
     psmove_init(PSMOVE_CURRENT_VERSION);
-    navDeviceGlobalInit(app.use_bthps3 ? NavBackend_SDL3 : NavBackend_LibNav);
+    navDeviceGlobalInit();
     logWrite("main", "started. waiting for PS Move and PS Navigator controllers...");
 
     while (InterlockedCompareExchange(&app.running, 1, 1)) {
@@ -193,7 +205,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
             }
         }
 
-        updateServiceDevices(&app, &last_service_poll_tick, now);
+        updateServiceDevices(&app, &last_service_poll_tick, &last_service_full_tick, now);
         updateTrayTooltipIfNeeded(&app, &last_tray_update_tick, now);
 
         if ((DWORD)(now - last_liveness_tick) >= DEVICE_LIVENESS_POLL_MS) {
@@ -233,12 +245,14 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
             }
         }
         if (app.move_connected[0] && app.moves[0]) {
-            processMoveInputDevice(&app.move_profiles[0], app.moves[0], &app.report, now);
+            int polled = processMoveInputDevice(&app.move_profiles[0], app.moves[0], &app.report, now);
             app.move_battery_raw[0] = psmove_get_battery(app.moves[0]);
+            deviceCheckMoveSilence(&app, 0, now, polled);
         }
         if (app.move_connected[1] && app.moves[1]) {
-            processMoveInputDevice(&app.move_profiles[1], app.moves[1], &app.report, now);
+            int polled = processMoveInputDevice(&app.move_profiles[1], app.moves[1], &app.report, now);
             app.move_battery_raw[1] = psmove_get_battery(app.moves[1]);
+            deviceCheckMoveSilence(&app, 1, now, polled);
         }
         maybeSendTelemetry(&app, now);
         if (app.vigem_client && app.vigem_pad) {

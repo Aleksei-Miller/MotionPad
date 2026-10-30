@@ -5,8 +5,10 @@
 
 void deviceSetMoveDisconnected(AppContext *app, int move_index);
 void deviceRemoveDisconnectedMovesBestEffort(AppContext *app);
+void deviceCheckMoveSilence(AppContext *app, int move_index, DWORD now, int poll_count);
 void deviceConnectAvailableMoves(AppContext *app);
 void deviceConnectNavigatorsIfNeeded(AppContext *app, DWORD now);
+void deviceRestartDevices(AppContext *app, DWORD now);
 void deviceCheckAlive(AppContext *app, DWORD now);
 bool deviceHasAnyInputConnected(const AppContext *app);
 

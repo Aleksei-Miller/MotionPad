@@ -46,16 +46,17 @@ typedef struct AppContext {
     bool vigem_notification_registered;
 
     volatile LONG running;
+    volatile LONG service_dirty;
     bool output_enabled;
     bool tray_added;
 
     MoveProfile move_profiles[MOVE_COUNT];
     PSMove *moves[MOVE_COUNT];
     bool move_connected[MOVE_COUNT];
-    int move_source_id[MOVE_COUNT];
     char move_serials[MOVE_COUNT][MOVE_SERIAL_LENGTH];
 
     int move_battery_raw[MOVE_COUNT];
+    DWORD move_silence_tick[MOVE_COUNT];
 
     NavDevice *navigators[NAVIGATOR_COUNT];
     NavigatorProfile navigator_profiles[NAVIGATOR_COUNT];
@@ -63,7 +64,6 @@ typedef struct AppContext {
     char navigator_cooldown_path[NAVIGATOR_COUNT][NAVIGATOR_PATH_LENGTH];
     DWORD navigator_cooldown_tick[NAVIGATOR_COUNT];
     DWORD navigator_reconnect_tick;
-    bool use_bthps3;
     bool use_auto_profile;
     int poll_rate_ms;
     RumbleConfig rumble_config;
