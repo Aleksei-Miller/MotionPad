@@ -73,14 +73,16 @@ AxisSettings profileReadAxisSettings(const wchar_t *config_path, const wchar_t *
 int profileReadKeyboardKey(const wchar_t *config_path)
 {
     int repeat_ms = GetPrivateProfileIntW(L"Keyboard", L"Key", 120, config_path);
-    if (repeat_ms < 1) repeat_ms = 1;
+    if (repeat_ms < 0) return -1;
+    if (repeat_ms < 1) return 1;
     return repeat_ms;
 }
 
 int profileReadMouseKey(const wchar_t *config_path)
 {
     int repeat_ms = GetPrivateProfileIntW(L"Mouse", L"Key", 120, config_path);
-    if (repeat_ms < 1) repeat_ms = 1;
+    if (repeat_ms < 0) return -1;
+    if (repeat_ms < 1) return 1;
     return repeat_ms;
 }
 
@@ -996,12 +998,6 @@ void profileSaveSettings(const AppContext *app)
     );
     WritePrivateProfileStringW(
         L"General",
-        L"UseBthPS3",
-        app->use_bthps3 ? L"1" : L"0",
-        app->settings_path
-    );
-    WritePrivateProfileStringW(
-        L"General",
         L"UseAutoProfile",
         app->use_auto_profile ? L"1" : L"0",
         app->settings_path
@@ -1047,7 +1043,6 @@ void profileLoadSettings(AppContext *app)
 
     app->output_enabled = GetPrivateProfileIntW(L"General", L"EnableOutput", 1, app->settings_path) ? true : false;
     app->telemetry_enabled = GetPrivateProfileIntW(L"General", L"EnableTelemetry", 0, app->settings_path) ? true : false;
-    app->use_bthps3 = GetPrivateProfileIntW(L"General", L"UseBthPS3", 0, app->settings_path) ? true : false;
     app->use_auto_profile = GetPrivateProfileIntW(L"General", L"UseAutoProfile", 0, app->settings_path) ? true : false;
     app->poll_rate_ms = (int)GetPrivateProfileIntW(L"General", L"PollRateMs", 4, app->settings_path);
     if (app->poll_rate_ms < 1) app->poll_rate_ms = 1;

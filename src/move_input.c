@@ -100,7 +100,15 @@ static void applyButtonBindingArray(ButtonBinding *bindings, int binding_count, 
                 case ActionKind_ResetAccelY: if (pressed) accel_reset_requested[SensorAxisIndex_Y] = true; break;
                 case ActionKind_ResetAccelZ: if (pressed) accel_reset_requested[SensorAxisIndex_Z] = true; break;
                 case ActionKind_AltMode: if (pressed && alt_mode_requested) *alt_mode_requested = true; break;
-                default: updateDigitalButtonAction(action, pressed, report, ps_trigger, repeatMs, mouseRepeatMs, wheelRepeatMs, now); break;
+                case ActionKind_XboxTrigger:
+                    if (binding->input == MoveButtonInput_Trigger) {
+                        if (action->data.xboxAxis == XboxAxisKind_LT) { if (ps_trigger > report->bLeftTrigger) report->bLeftTrigger = (BYTE)ps_trigger; }
+                        else if (action->data.xboxAxis == XboxAxisKind_RT) { if (ps_trigger > report->bRightTrigger) report->bRightTrigger = (BYTE)ps_trigger; }
+                    } else {
+                        updateDigitalButtonAction(action, pressed, report, repeatMs, mouseRepeatMs, wheelRepeatMs, now);
+                    }
+                    break;
+                default: updateDigitalButtonAction(action, pressed, report, repeatMs, mouseRepeatMs, wheelRepeatMs, now); break;
             }
         }
     }
@@ -191,11 +199,12 @@ static void applySensorBindingForProfile(MoveProfile *profile, SensorBinding *bi
     }
 }
 
-void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *report, DWORD now)
+int processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *report, DWORD now)
 {
     unsigned int btns;
     int raw_trigger;
     int ps_trigger;
+    int poll_count = 0;
     int gx = 0, gy = 0, gz = 0, ax = 0, ay = 0, az = 0;
     int pgx, pgy, pgz, pax, pay, paz;
     int repeat_ms;
@@ -208,13 +217,10 @@ void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *rep
     bool alt_mode_requested = false;
     AxisSettings *active_trigger_config;
 
-    if (!profile || !move || !report) return;
+    if (!profile || !move || !report) return 0;
 
-    {
-        int poll_count = 0;
-        while (poll_count < MAX_PSMOVE_POLLS_PER_TICK && psmove_poll(move)) {
-            ++poll_count;
-        }
+    while (poll_count < MAX_PSMOVE_POLLS_PER_TICK && psmove_poll(move)) {
+        ++poll_count;
     }
     btns = psmove_get_buttons(move);
     raw_trigger = psmove_get_trigger(move);
@@ -297,4 +303,6 @@ void processMoveInputDevice(MoveProfile *profile, PSMove *move, XUSB_REPORT *rep
     AP(SensorAxisInput_AccelZ_Pos, paz, &active_accel_config[SensorAxisIndex_Z], false);
     AP(SensorAxisInput_AccelZ_Neg, paz, &active_accel_config[SensorAxisIndex_Z], false);
 #undef AP
+
+    return poll_count;
 }

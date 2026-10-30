@@ -7,6 +7,7 @@
 #include "tray_ui.h"
 #include "rumble_manager.h"
 #include "vigem_manager.h"
+#include "device_manager.h"
 #include "logger.h"
 #include "nav_device.h"
 #include "profile.h"
@@ -18,6 +19,10 @@ static QFPIWFunc qfpiw = NULL;
 #endif
 
 static AppContext *g_app = NULL;
+
+#ifndef DBT_DEVNODES_CHANGED
+#define DBT_DEVNODES_CHANGED 0x0007
+#endif
 
 #define MAX_TRAY_PROFILES (ID_TRAY_PROFILE_LAST - ID_TRAY_PROFILE_FIRST + 1)
 
@@ -42,24 +47,6 @@ static void logLastErrorW(const wchar_t *prefix)
         LocalFree(message_buffer);
     } else {
         logWriteW("winapi", L"%ls: code=%lu", prefix, error_code);
-    }
-}
-
-static int navigatorBatteryRawToPercent(int battery_raw, bool is_sdl3)
-{
-    if (is_sdl3) {
-        return battery_raw;
-    }
-    switch (battery_raw) {
-        case 0x00: return 0;
-        case 0x01: return 20;
-        case 0x02: return 40;
-        case 0x03: return 60;
-        case 0x04: return 80;
-        case 0x05: return 100;
-        case 0xEE: return 100;
-        case 0xEF: return 100;
-        default: return 0;
     }
 }
 
@@ -214,9 +201,10 @@ static int getProfileSortRank(const wchar_t *relative_path)
 {
     if (_wcsicmp(relative_path, L"profiles\\hybrid mode.ini") == 0) return 0;
     if (_wcsicmp(relative_path, L"profiles\\controller mode.ini") == 0) return 1;
-    if (_wcsicmp(relative_path, L"profiles\\arrow mode.ini") == 0) return 2;
-    if (_wcsicmp(relative_path, L"profiles\\wasd mode.ini") == 0) return 3;
-    return 4;
+    if (_wcsicmp(relative_path, L"profiles\\none mode.ini") == 0) return 2;
+    if (_wcsicmp(relative_path, L"profiles\\arrow mode.ini") == 0) return 3;
+    if (_wcsicmp(relative_path, L"profiles\\wasd mode.ini") == 0) return 4;
+    return 5;
 }
 
 static int compareTrayProfiles(const void *left, const void *right)
@@ -332,7 +320,7 @@ static void appendProfilesMenu(HMENU menu_handle, const AppContext *app)
             if (profile_index + 1 < g_tray_profile_count) {
                 int current_rank = getProfileSortRank(g_tray_profiles[profile_index].relative_path);
                 int next_rank = getProfileSortRank(g_tray_profiles[profile_index + 1].relative_path);
-                if (current_rank != next_rank && (current_rank == 1 || current_rank == 3)) {
+                if (current_rank != next_rank && (current_rank == 2 || current_rank == 4)) {
                     AppendMenuW(profiles_menu, MF_SEPARATOR, 0, NULL);
                 }
             }
@@ -592,14 +580,13 @@ static void buildBatteryMenuText(const AppContext *app, wchar_t *out_text, size_
 
     for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT && pos < out_count; ++navigator_index) {
         if (app->navigators[navigator_index]) {
-            bool is_sdl3 = navDeviceGetType(app->navigators[navigator_index]) == NavDevType_SDL3;
             int battery_raw = navDeviceGetBattery(app->navigators[navigator_index]);
             int percent = -1;
 
             if (battery_raw == NAV_BATTERY_USB) {
                 percent = NAV_BATTERY_USB;
             } else if (battery_raw >= 0) {
-                percent = navigatorBatteryRawToPercent(battery_raw, is_sdl3);
+                percent = battery_raw;
             }
 
             if (percent == NAV_BATTERY_USB) {
@@ -665,19 +652,25 @@ void trayToggleEmulation(AppContext *app)
 static void trayLaunchPSMoveCalibration(void)
 {
     wchar_t app_dir[MAX_PATH];
-    wchar_t command_line[MAX_PATH];
+    wchar_t comspec[MAX_PATH];
+    wchar_t command_line[MAX_PATH * 2 + 64];
     STARTUPINFOW startup_info;
     PROCESS_INFORMATION process_info;
     int written;
 
     if (!buildExecutableDirectory(app_dir, MAX_PATH)) return;
 
-    written = _snwprintf(command_line, MAX_PATH, L"\"%ls\\psmove.exe\" calibrate", app_dir);
-    if (written < 0 || written >= MAX_PATH) {
+    if (GetEnvironmentVariableW(L"ComSpec", comspec, MAX_PATH) == 0 || comspec[0] == L'\0') {
+        wcsncpy(comspec, L"cmd.exe", MAX_PATH);
+        comspec[MAX_PATH - 1] = L'\0';
+    }
+
+    written = _snwprintf(command_line, MAX_PATH * 2 + 64, L"\"%ls\" /k \"\"%ls\\psmove.exe\" calibrate\"", comspec, app_dir);
+    if (written < 0 || written >= MAX_PATH * 2 + 64) {
         logWrite("tray", "psmove.exe path is too long");
         return;
     }
-    command_line[MAX_PATH - 1] = L'\0';
+    command_line[MAX_PATH * 2 + 63] = L'\0';
 
     ZeroMemory(&startup_info, sizeof(startup_info));
     startup_info.cb = sizeof(startup_info);
@@ -696,20 +689,28 @@ static void trayLaunchPSMoveCalibration(void)
 static void trayPairPSMove(void)
 {
     wchar_t app_dir[MAX_PATH];
-    wchar_t exe_path[MAX_PATH];
-    // Show instruction to the user
+    wchar_t comspec[MAX_PATH];
+    wchar_t parameters[MAX_PATH + 48];
+    HINSTANCE result;
+    int written;
+
     MessageBoxW(NULL, L"Please connect PS Move via USB to PC.", L"Pair PS Move", MB_OK | MB_ICONINFORMATION);
 
     if (!buildExecutableDirectory(app_dir, MAX_PATH)) return;
 
-    if (_snwprintf(exe_path, MAX_PATH, L"%ls\\psmove.exe", app_dir) < 0) {
+    if (GetEnvironmentVariableW(L"ComSpec", comspec, MAX_PATH) == 0 || comspec[0] == L'\0') {
+        wcsncpy(comspec, L"cmd.exe", MAX_PATH);
+        comspec[MAX_PATH - 1] = L'\0';
+    }
+
+    written = _snwprintf(parameters, MAX_PATH + 48, L"/k \"\"%ls\\psmove.exe\" pair\"", app_dir);
+    if (written < 0 || written >= MAX_PATH + 48) {
         logWrite("tray", "psmove.exe path is too long");
         return;
     }
-    exe_path[MAX_PATH - 1] = L'\0';
+    parameters[MAX_PATH + 47] = L'\0';
 
-    // Launch psmove.exe with "pair" argument using elevated privileges
-    HINSTANCE result = ShellExecuteW(NULL, L"runas", exe_path, L"pair", NULL, SW_SHOWNORMAL);
+    result = ShellExecuteW(NULL, L"runas", comspec, parameters, NULL, SW_SHOWNORMAL);
     if ((INT_PTR)result <= 32) {
         logLastErrorW(L"ShellExecuteW(psmove.exe pair) failed");
     } else {
@@ -743,21 +744,23 @@ static LRESULT CALLBACK trayWindowProc(HWND window_handle, UINT message, WPARAM 
                 HMENU menu_handle = CreatePopupMenu();
                 if (menu_handle && g_app) {
                     POINT cursor_pos;
-                    UINT toggle_flags = MF_STRING | (g_app->output_enabled ? MF_UNCHECKED : MF_CHECKED);
+                    const wchar_t *emulation_label = g_app->output_enabled ? L"Disable Emulation" : L"Enable Emulation";
                     wchar_t battery_text[64];
                     buildBatteryMenuText(g_app, battery_text, 64);
                     AppendMenuW(menu_handle, MF_STRING | MF_GRAYED, 0, battery_text);
                     AppendMenuW(menu_handle, MF_SEPARATOR, 0, NULL);
-					AppendMenuW(menu_handle, MF_STRING, ID_TRAY_EDIT_PROFILE, L"Edit Profile");
+                    AppendMenuW(menu_handle, MF_STRING, ID_TRAY_EDIT_PROFILE, L"Edit Profile");
                     appendProfilesMenu(menu_handle, g_app);
                     AppendMenuW(menu_handle, MF_SEPARATOR, 0, NULL);
-                    AppendMenuW(menu_handle, toggle_flags, ID_TRAY_TOGGLE_EMULATION, L"Disable");
                     HMENU service_menu = CreatePopupMenu();
                     if (service_menu) {
+                        AppendMenuW(service_menu, MF_STRING, ID_TRAY_RECONNECT_DEVICES, L"Reconnect Devices");
+                        AppendMenuW(service_menu, MF_STRING, ID_TRAY_TOGGLE_EMULATION, emulation_label);
+                        AppendMenuW(service_menu, MF_SEPARATOR, 0, NULL);
                         AppendMenuW(service_menu, MF_STRING, ID_TRAY_CALIBRATE_PSMOVE, L"Calibrate PS Move");
                         AppendMenuW(service_menu, MF_STRING, ID_TRAY_PAIR_PSMOVE, L"Pair PS Move");
                         AppendMenuW(menu_handle, MF_POPUP, (UINT_PTR)service_menu, L"Service");
-                     }
+                    }
                     AppendMenuW(menu_handle, MF_SEPARATOR, 0, NULL);
                     AppendMenuW(menu_handle, MF_STRING, ID_TRAY_EXIT, L"Exit");
                     GetCursorPos(&cursor_pos);
@@ -785,6 +788,10 @@ static LRESULT CALLBACK trayWindowProc(HWND window_handle, UINT message, WPARAM 
                 trayLaunchPSMoveCalibration();
                 return 0;
             }
+            if (LOWORD(w_param) == ID_TRAY_RECONNECT_DEVICES) {
+                deviceRestartDevices(g_app, GetTickCount());
+                return 0;
+            }
             if (LOWORD(w_param) == ID_TRAY_EDIT_PROFILE) {
                 trayEditProfile(g_app);
                 return 0;
@@ -798,6 +805,12 @@ static LRESULT CALLBACK trayWindowProc(HWND window_handle, UINT message, WPARAM 
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
+        case WM_DEVICECHANGE:
+            if (w_param == DBT_DEVNODES_CHANGED && g_app) {
+                InterlockedExchange(&g_app->service_dirty, 1);
+                return TRUE;
+            }
+            break;
     }
     return DefWindowProcW(window_handle, message, w_param, l_param);
 }

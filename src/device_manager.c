@@ -108,8 +108,8 @@ void deviceSetMoveDisconnected(AppContext *app, int move_index)
     }
 
     app->move_connected[move_index] = false;
-    app->move_source_id[move_index] = -1;
     app->move_serials[move_index][0] = '\0';
+    app->move_silence_tick[move_index] = 0;
     moveProfileResetRuntimeState(&app->move_profiles[move_index]);
     moveProfileResetMouseState(&app->move_profiles[move_index]);
 
@@ -127,20 +127,54 @@ void deviceRemoveDisconnectedMovesBestEffort(AppContext *app)
 
     if (!app) return;
 
-    count = psmove_count_connected();
+    count = app->move_count_cache;
 
     for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
         if (app->move_connected[move_index]) ++connected_slots;
     }
 
-    if (count < connected_slots) {
-        for (move_index = MOVE_COUNT - 1; move_index >= 0; --move_index) {
-            if (app->move_connected[move_index]) {
-                deviceSetMoveDisconnected(app, move_index);
-                ++count;
-                if (count >= connected_slots) break;
-            }
+    if (count >= connected_slots) return;
+
+    for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
+        if (!app->move_connected[move_index]) continue;
+        if (app->moves[move_index] &&
+            psmove_connection_type(app->moves[move_index]) == Conn_Bluetooth) {
+            continue;
         }
+        deviceSetMoveDisconnected(app, move_index);
+        --connected_slots;
+        if (count >= connected_slots) break;
+    }
+}
+
+void deviceCheckMoveSilence(AppContext *app, int move_index, DWORD now, int poll_count)
+{
+    if (!app || move_index < 0 || move_index >= MOVE_COUNT) return;
+    if (!app->move_connected[move_index] || !app->moves[move_index]) return;
+
+    if (psmove_connection_type(app->moves[move_index]) != Conn_Bluetooth) {
+        app->move_silence_tick[move_index] = 0;
+        return;
+    }
+
+    if (poll_count > 0) {
+        app->move_silence_tick[move_index] = 0;
+        return;
+    }
+
+    if (app->move_silence_tick[move_index] == 0) {
+        app->move_silence_tick[move_index] = now ? now : 1;
+        return;
+    }
+
+    if ((DWORD)(now - app->move_silence_tick[move_index]) > MOVE_SILENCE_TIMEOUT_MS) {
+        logWrite(
+            "psmove",
+            "Move%d silent for %lu ms, dropping it",
+            move_index + 1,
+            (unsigned long)MOVE_SILENCE_TIMEOUT_MS
+        );
+        deviceSetMoveDisconnected(app, move_index);
     }
 }
 
@@ -148,31 +182,27 @@ void deviceConnectAvailableMoves(AppContext *app)
 {
     int count;
     int index;
-    int source_ids[MOVE_COUNT * 2];
+    int connected_slots = 0;
+    int move_index;
 
     int newly_connected = 0;
 
     if (!app) return;
 
-    count = psmove_count_connected(source_ids, MOVE_COUNT * 2);
-    if (count <= 0) return;
+    for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
+        if (app->move_connected[move_index]) ++connected_slots;
+    }
+
+    count = app->move_count_cache;
+    if (count <= connected_slots) return;
 
     for (index = 0; index < count && newly_connected < 1; ++index) {
         PSMove *move = NULL;
         char *serial = NULL;
         int target_slot = -1;
-        int sid = source_ids[index];
         int s;
 
         if (app->move_connected[0] && app->move_connected[1]) return;
-
-        for (s = 0; s < MOVE_COUNT; ++s) {
-            if (app->move_connected[s] && app->move_source_id[s] == sid) {
-                sid = -1;
-                break;
-            }
-        }
-        if (sid < 0) continue;
 
         if (!app->move_connected[0]) target_slot = 0;
         else if (!app->move_connected[1]) target_slot = 1;
@@ -180,7 +210,10 @@ void deviceConnectAvailableMoves(AppContext *app)
         if (target_slot < 0) break;
 
         move = psmove_connect_by_id(index);
-        if (!move) continue;
+        if (!move) {
+            logWrite("psmove", "connect_by_id(%d) failed while count=%d", index, count);
+            continue;
+        }
 
         serial = psmove_get_serial(move);
         if (isMoveSerialAssigned(app, serial)) {
@@ -218,6 +251,7 @@ void deviceConnectAvailableMoves(AppContext *app)
             }
 
             if (!keep) {
+                logWrite("psmove", "connect_by_id(%d) rejected by sensor test, con_type=%d", index, con_type);
                 if (serial) psmove_free_mem(serial);
                 psmove_disconnect(move);
                 continue;
@@ -226,8 +260,8 @@ void deviceConnectAvailableMoves(AppContext *app)
 
         app->moves[target_slot] = move;
         app->move_connected[target_slot] = true;
+        app->move_silence_tick[target_slot] = 0;
         ++newly_connected;
-        app->move_source_id[target_slot] = source_ids[index];
         if (serial && serial[0]) {
             strncpy(app->move_serials[target_slot], serial, MOVE_SERIAL_LENGTH - 1);
             app->move_serials[target_slot][MOVE_SERIAL_LENGTH - 1] = '\0';
@@ -341,6 +375,42 @@ void deviceConnectNavigatorsIfNeeded(AppContext *app, DWORD now)
             );
         }
     }
+}
+
+void deviceRestartDevices(AppContext *app, DWORD now)
+{
+    int move_index;
+    int navigator_index;
+
+    if (!app) return;
+
+    for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
+        deviceSetMoveDisconnected(app, move_index);
+    }
+
+    for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT; ++navigator_index) {
+        if (app->navigators[navigator_index]) {
+            navDeviceDestroy(app->navigators[navigator_index]);
+            app->navigators[navigator_index] = NULL;
+        }
+        app->navigator_paths[navigator_index][0] = '\0';
+        app->navigator_cooldown_path[navigator_index][0] = '\0';
+        app->navigator_cooldown_tick[navigator_index] = 0;
+        navigatorProfileResetRuntimeState(&app->navigator_profiles[navigator_index]);
+    }
+
+    app->navigator_reconnect_tick = 0;
+    appContextZeroReport(app);
+    vigemSubmitReport(app, &app->report);
+
+    app->move_count_cache = psmove_count_connected();
+    for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
+        deviceConnectAvailableMoves(app);
+    }
+
+    deviceConnectNavigatorsIfNeeded(app, now);
+
+    logWrite("device", "restart: reinitialized PS Move and PS Navigation devices");
 }
 
 void deviceCheckAlive(AppContext *app, DWORD now)

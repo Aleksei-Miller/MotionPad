@@ -3,9 +3,9 @@
 ## Build
 
 ```powershell
-cmake --build app/build/gcc          # MinGW GCC
-cmake --build app/build/tcc          # TCC
-cmake --build app/build/msvc         # MSVC
+cmake --build build/gcc          # MinGW GCC
+cmake --build build/tcc          # TCC
+cmake --build build/msvc         # MSVC
 ```
 
 Run from `app/` directory. The binary appears in `build/<compiler>/bin/motionpad.exe`.
@@ -34,7 +34,7 @@ app/
 | `device_manager.c` | Connect/disconnect detection for Move + Navigation |
 | `move_input.c` | PS Move polling + binding processing |
 | `navigator_input.c` | PS Navigation binding processing |
-| `nav_device.c` | Navigation device abstraction (libnavinput / SDL3 backends) |
+| `nav_device.c` | Navigation device abstraction (SDL3 backend) |
 | `vigem_manager.c` | ViGEmBus client: create/destroy/submit Xbox 360 pad |
 | `tray_ui.c` | System tray icon, tooltip (battery), menu |
 | `profile_watcher.c` | Filesystem watcher for live profile reload |
@@ -48,14 +48,14 @@ app/
 Main loop (every ~9ms, PollRateMs in settings.ini):
   1. trayApplyPendingProfileSelection — loads queued profile switch
   2. trayCheckAutoProfile — detects foreground window, auto-switches profile if [Profile] Path= matches
-  3. updateServiceDevices (every 3s) — connects new Moves/Navigators, removes OS-disconnected
-  3. updateTrayTooltipIfNeeded — reads *cached* battery, no psmove_poll
-  4. deviceCheckAlive (every 3s) — single psmove_poll per Move, navDevicePoll per Nav
-  5. appContextZeroReport — zeros XUSB_REPORT for new frame
-  6. processNavigatorInputDevice — poll Nav, apply bindings → XUSB_REPORT
-  7. processMoveInputDevice — while(psmove_poll), apply button + sensor bindings → XUSB_REPORT
-  8. maybeSendTelemetry — reads cached state, no poll drain
-  9. vigemSubmitReport — sends XUSB_REPORT to ViGEmBus (virtual Xbox 360 pad)
+  3. updateServiceDevices — nav scan every SERVICE_POLL_MS (250 ms), full Move enumeration/connect on service_dirty or every SERVICE_FALLBACK_POLL_MS (2000 ms)
+  4. updateTrayTooltipIfNeeded — reads *cached* battery, no psmove_poll
+  5. deviceCheckAlive (every 3s) — single psmove_poll per Move, navDevicePoll per Nav
+  6. appContextZeroReport — zeros XUSB_REPORT for new frame
+  7. processNavigatorInputDevice — poll Nav, apply bindings → XUSB_REPORT
+  8. processMoveInputDevice — while(psmove_poll), apply button + sensor bindings → XUSB_REPORT
+  9. maybeSendTelemetry — reads cached state, no poll drain
+ 10. vigemSubmitReport — sends XUSB_REPORT to ViGEmBus (virtual Xbox 360 pad)
 ```
 
 ## Important Patterns
@@ -64,18 +64,30 @@ Main loop (every ~9ms, PollRateMs in settings.ini):
 Digital button actions (`updateDigitalButtonAction`) do NOT track `isDown` for Xbox buttons — they always set the bit and rely on `appContextZeroReport` to clear it next frame. Sensor-triggered button actions (`applySensorButtonLikeAction`) DO track `isDown` to manage press/release state and clear their bit on release. This prevents interference between devices sharing the same binding.
 
 ### Auto-repeat for digital button actions
-`updateDigitalButtonAction` supports auto-repeat for `ActionKind_Keyboard` and `ActionKind_MouseButton`. When held, the key/mouse button repeats at the interval set by `[Keyboard] Key=` / `[Mouse] Key=` in the profile INI. `isDown` and `lastRepeatTick` are tracked per-action to manage press, repeat, and release. Mouse wheel actions also repeat using `[Mouse] Wheel=`.
+`updateDigitalButtonAction` supports auto-repeat for `ActionKind_Keyboard` and `ActionKind_MouseButton`. When held, the key/mouse button repeats at the interval set by `[Keyboard] Key=` / `[Mouse] Key=` in the profile INI. A negative value disables repeat: the key/button stays held until released. `isDown` and `lastRepeatTick` are tracked per-action to manage press, repeat, and release. Mouse wheel actions also repeat using `[Mouse] Wheel=`.
 
 ### Report sharing
 A single `XUSB_REPORT` is shared across all connected devices. Processing order is Nav→Move so Move accelerometer can overwrite Navigator on shared axes. Bits not explicitly cleared will persist until `appContextZeroReport` at the start of the next frame.
 
+### Device discovery
+`updateServiceDevices` runs every frame but only does work when due:
+- nav pass (`deviceConnectNavigatorsIfNeeded`) — every `SERVICE_POLL_MS` (250 ms), or immediately when `app.service_dirty` is set
+- full Move pass (`psmove_count_connected` → `deviceRemoveDisconnectedMovesBestEffort` → `deviceConnectAvailableMoves`) — every `SERVICE_FALLBACK_POLL_MS` (2000 ms), or immediately when `service_dirty` is set
+
+`service_dirty` is set by `WM_DEVICECHANGE` / `DBT_DEVNODES_CHANGED` in `trayWindowProc`, so a freshly powered-on controller is picked up on the next frame instead of waiting out a poll interval. The 2000 ms fallback is the safety net for transitions Windows does not report.
+
+`psmove_count_connected()` takes **no arguments** — there is no `source_ids` overload (`lib/libpsmoveapi.def`). Passing extra arguments reads caller stack garbage and silently disables any dedupe that depends on them. It is only called to refresh `app->move_count_cache` (`updateServiceDevices` full pass, `deviceRestartDevices`); every other site reads the cache.
+
+### Move liveness
+`processMoveInputDevice` returns how many packets it drained. `deviceCheckMoveSilence` is called with that value right after each Move is processed: a Bluetooth Move that delivers nothing for `MOVE_SILENCE_TIMEOUT_MS` (1500 ms) while the input phase is running is dropped with `deviceSetMoveDisconnected`. This is per-device, so exactly the controller that went silent is removed.
+
+Bluetooth slots are deliberately skipped by `deviceRemoveDisconnectedMovesBestEffort` — a Bluetooth power-off does not reliably drop `psmove_count_connected()`, and guessing a slot from the count would remove the wrong controller. That count-based path only clears non-Bluetooth (USB) slots, which `psmove_poll()` cannot liveness-check.
+
 ### Poll draining
-`psmove_poll()` drains one packet per call. `processMoveInputDevice` uses `while (psmove_poll)` to drain all available packets, ensuring the getters return the latest state. `deviceCheckAlive` and `maybeSendTelemetry` do NOT drain — they read cached state. Battery is cached after `processMoveInputDevice` so tray doesn't need to poll.
+`psmove_poll()` drains one packet per call. `processMoveInputDevice` uses `while (psmove_poll)` to drain all available packets, ensuring the getters return the latest state. `deviceCheckAlive` drains at most one packet per Move; `maybeSendTelemetry` does not poll at all — it reads cached state. Battery is cached after `processMoveInputDevice` so tray doesn't need to poll.
 
 ### Navigation backends
-Two backends, selected by `UseBthPS3` in `settings.ini`:
-- `libnavinput` — USB-only, WinUSB driver, battery via `psnavigatorGetBattery()`
-- `SDL3` — USB/BT, requires BthPS3 + DsHidMini mode 3, battery via `HidD_GetFeature` 50-byte report (byte[31]: 0x00–0x05 = battery, 0xEE/0xEF = USB)
+Single SDL3 backend for PS Navigation (USB/BT, requires BthPS3 + DsHidMini mode 3), battery via `HidD_GetFeature` 50-byte report (byte[31]: 0x00–0x05 = battery, 0xEE/0xEF = USB)
 
 ## Auto-Profile Switching
 

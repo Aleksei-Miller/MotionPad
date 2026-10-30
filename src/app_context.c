@@ -16,9 +16,9 @@ void appContextInit(AppContext *app)
     app->config_watch_stop_event = NULL;
     app->vigem_notification_registered = false;
     for (move_index = 0; move_index < MOVE_COUNT; ++move_index) {
-        app->move_source_id[move_index] = -1;
         app->move_serials[move_index][0] = '\0';
         app->move_battery_raw[move_index] = -1;
+        app->move_silence_tick[move_index] = 0;
     }
     app->navigator_reconnect_tick = 0;
     for (navigator_index = 0; navigator_index < NAVIGATOR_COUNT; ++navigator_index) {
